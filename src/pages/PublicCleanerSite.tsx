@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 
 type Cleaner = {
   id: string;
+  slug: string;
   business_name: string | null;
   logo_url: string | null;
   address: string | null;
@@ -21,14 +22,6 @@ type ServiceOffering = {
   price_cents: number | null;
 };
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 function formatServiceName(service: string, variant: string | null) {
   const serviceName = service
     .replace(/_/g, " ")
@@ -44,6 +37,10 @@ function formatPrice(priceCents: number | null) {
   }).format(priceCents / 100);
 }
 
+function normaliseWebsite(value: string) {
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
+
 export default function PublicCleanerSite() {
   const { slug } = useParams<{ slug: string }>();
   const [cleaner, setCleaner] = useState<Cleaner | null>(null);
@@ -55,16 +52,23 @@ export default function PublicCleanerSite() {
     let cancelled = false;
 
     async function load() {
-      if (!slug) return;
+      if (!slug) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
-      const { data: cleaners, error: cleanerError } = await supabase
+      const { data: matched, error: cleanerError } = await supabase
         .from("cleaners")
         .select(
-          "id, business_name, logo_url, address, phone, whatsapp, website, about, contact_email"
+          "id, slug, business_name, logo_url, address, phone, whatsapp, website, about, contact_email"
         )
-        .not("business_name", "is", null);
+        .eq("slug", slug)
+        .eq("is_published", true)
+        .eq("is_active", true)
+        .maybeSingle();
 
       if (cancelled) return;
       if (cleanerError) {
@@ -73,17 +77,13 @@ export default function PublicCleanerSite() {
         return;
       }
 
-      const matched = (cleaners ?? []).find(
-        (row) => row.business_name && slugify(row.business_name) === slug
-      ) as Cleaner | undefined;
-
       if (!matched) {
         setCleaner(null);
         setLoading(false);
         return;
       }
 
-      setCleaner(matched);
+      setCleaner(matched as Cleaner);
 
       const { data: offerings, error: servicesError } = await supabase
         .from("service_offerings")
@@ -147,11 +147,7 @@ export default function PublicCleanerSite() {
         <div className="mx-auto max-w-6xl px-5 py-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             {cleaner.logo_url ? (
-              <img
-                src={cleaner.logo_url}
-                alt={`${cleaner.business_name ?? "Cleaner"} logo`}
-                className="h-12 w-12 rounded-2xl object-cover border border-slate-200"
-              />
+              <img src={cleaner.logo_url} alt={`${cleaner.business_name ?? "Cleaner"} logo`} className="h-12 w-12 rounded-2xl object-cover border border-slate-200" />
             ) : (
               <div className="h-12 w-12 rounded-2xl bg-slate-900 text-white grid place-items-center font-bold text-xl">
                 {(cleaner.business_name ?? "K").slice(0, 1).toUpperCase()}
@@ -170,31 +166,17 @@ export default function PublicCleanerSite() {
         <section className="bg-slate-950 text-white">
           <div className="mx-auto max-w-6xl px-5 py-16 sm:py-24 grid gap-10 lg:grid-cols-[1.3fr_.7fr] lg:items-center">
             <div>
-              <p className="uppercase tracking-[0.22em] text-xs font-semibold text-emerald-300 mb-4">
-                Trusted local cleaner
-              </p>
-              <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-tight">
-                {cleaner.business_name}
-              </h1>
+              <p className="uppercase tracking-[0.22em] text-xs font-semibold text-emerald-300 mb-4">Trusted local cleaner</p>
+              <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-tight">{cleaner.business_name}</h1>
               <p className="mt-6 text-lg sm:text-xl text-slate-300 max-w-2xl">
                 {cleaner.about || "Professional local cleaning with simple, direct booking and friendly service."}
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 {whatsappNumber && (
-                  <a
-                    href={`https://wa.me/${whatsappNumber}`}
-                    className="rounded-full bg-emerald-400 px-6 py-3 font-bold text-slate-950 hover:bg-emerald-300"
-                  >
-                    Book on WhatsApp
-                  </a>
+                  <a href={`https://wa.me/${whatsappNumber}`} className="rounded-full bg-emerald-400 px-6 py-3 font-bold text-slate-950 hover:bg-emerald-300">Book on WhatsApp</a>
                 )}
                 {callNumber && (
-                  <a
-                    href={`tel:${callNumber}`}
-                    className="rounded-full border border-white/25 px-6 py-3 font-semibold hover:bg-white/10"
-                  >
-                    Call now
-                  </a>
+                  <a href={`tel:${callNumber}`} className="rounded-full border border-white/25 px-6 py-3 font-semibold hover:bg-white/10">Call now</a>
                 )}
               </div>
             </div>
@@ -209,11 +191,9 @@ export default function PublicCleanerSite() {
         </section>
 
         <section className="mx-auto max-w-6xl px-5 py-14 sm:py-20">
-          <div className="flex items-end justify-between gap-4 mb-8">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">Services</p>
-              <h2 className="text-3xl font-black mt-2">What we can help with</h2>
-            </div>
+          <div className="mb-8">
+            <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">Services</p>
+            <h2 className="text-3xl font-black mt-2">What we can help with</h2>
           </div>
 
           {services.length ? (
@@ -230,9 +210,7 @@ export default function PublicCleanerSite() {
               })}
             </div>
           ) : (
-            <div className="rounded-3xl bg-white border border-slate-200 p-7 text-slate-600">
-              Services and pricing will appear here once the cleaner has published them.
-            </div>
+            <div className="rounded-3xl bg-white border border-slate-200 p-7 text-slate-600">Services and pricing will appear here once the cleaner has published them.</div>
           )}
         </section>
 
@@ -241,29 +219,12 @@ export default function PublicCleanerSite() {
             <div>
               <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">About</p>
               <h2 className="text-3xl font-black mt-2">A local business you can contact directly</h2>
-              <p className="mt-5 text-slate-600 leading-7">
-                {cleaner.about || `${cleaner.business_name} provides local cleaning services and manages enquiries through Klean.ly.`}
-              </p>
+              <p className="mt-5 text-slate-600 leading-7">{cleaner.about || `${cleaner.business_name} provides local cleaning services and manages enquiries through Klean.ly.`}</p>
             </div>
             <div className="rounded-3xl bg-slate-50 border border-slate-200 p-7 space-y-4">
-              {cleaner.phone && (
-                <a href={`tel:${cleaner.phone}`} className="block">
-                  <div className="text-xs uppercase tracking-wider text-slate-500">Phone</div>
-                  <div className="font-bold mt-1">{cleaner.phone}</div>
-                </a>
-              )}
-              {cleaner.contact_email && (
-                <a href={`mailto:${cleaner.contact_email}`} className="block">
-                  <div className="text-xs uppercase tracking-wider text-slate-500">Email</div>
-                  <div className="font-bold mt-1 break-all">{cleaner.contact_email}</div>
-                </a>
-              )}
-              {cleaner.website && (
-                <a href={cleaner.website} target="_blank" rel="noreferrer" className="block">
-                  <div className="text-xs uppercase tracking-wider text-slate-500">Website</div>
-                  <div className="font-bold mt-1 break-all">{cleaner.website}</div>
-                </a>
-              )}
+              {cleaner.phone && <a href={`tel:${cleaner.phone}`} className="block"><div className="text-xs uppercase tracking-wider text-slate-500">Phone</div><div className="font-bold mt-1">{cleaner.phone}</div></a>}
+              {cleaner.contact_email && <a href={`mailto:${cleaner.contact_email}`} className="block"><div className="text-xs uppercase tracking-wider text-slate-500">Email</div><div className="font-bold mt-1 break-all">{cleaner.contact_email}</div></a>}
+              {cleaner.website && <a href={normaliseWebsite(cleaner.website)} target="_blank" rel="noreferrer" className="block"><div className="text-xs uppercase tracking-wider text-slate-500">Website</div><div className="font-bold mt-1 break-all">{cleaner.website}</div></a>}
             </div>
           </div>
         </section>
