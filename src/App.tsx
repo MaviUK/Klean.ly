@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import Analytics from "./pages/Analytics";
 import Invoices from "./pages/Invoices";
+import PublicCleanerSite from "./pages/PublicCleanerSite";
 import LegalModal from "./components/LegalModal";
 
 const TERMS_VERSION = "2025-09-29";
@@ -162,70 +163,79 @@ export default function App() {
 
   return (
     <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/onboarding" element={<Onboarding />} />
+      <Routes>
+        <Route path="/cleaner/:slug" element={<PublicCleanerSite />} />
 
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute user={user} loading={loading}>
-                <TermsGate>
-                  <Dashboard />
-                </TermsGate>
-              </ProtectedRoute>
-            }
-          />
+        <Route
+          path="*"
+          element={
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/onboarding" element={<Onboarding />} />
 
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute user={user} loading={loading}>
-                <TermsGate>
-                  <Settings />
-                </TermsGate>
-              </ProtectedRoute>
-            }
-          />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute user={user} loading={loading}>
+                      <TermsGate>
+                        <Dashboard />
+                      </TermsGate>
+                    </ProtectedRoute>
+                  }
+                />
 
-          <Route
-            path="/analytics"
-            element={
-              <ProtectedRoute user={user} loading={loading}>
-                <TermsGate>
-                  <Analytics />
-                </TermsGate>
-              </ProtectedRoute>
-            }
-          />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute user={user} loading={loading}>
+                      <TermsGate>
+                        <Settings />
+                      </TermsGate>
+                    </ProtectedRoute>
+                  }
+                />
 
-          <Route
-            path="/invoices"
-            element={
-              <ProtectedRoute user={user} loading={loading}>
-                <TermsGate>
-                  <Invoices />
-                </TermsGate>
-              </ProtectedRoute>
-            }
-          />
+                <Route
+                  path="/analytics"
+                  element={
+                    <ProtectedRoute user={user} loading={loading}>
+                      <TermsGate>
+                        <Analytics />
+                      </TermsGate>
+                    </ProtectedRoute>
+                  }
+                />
 
-          <Route
-            path="/_debug"
-            element={
-              <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-12">
-                Router is working
-              </div>
-            }
-          />
+                <Route
+                  path="/invoices"
+                  element={
+                    <ProtectedRoute user={user} loading={loading}>
+                      <TermsGate>
+                        <Invoices />
+                      </TermsGate>
+                    </ProtectedRoute>
+                  }
+                />
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+                <Route
+                  path="/_debug"
+                  element={
+                    <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-12">
+                      Router is working
+                    </div>
+                  }
+                />
 
-        <LegalModal open={legalOpen} onClose={closeLegal} defaultTab={legalTab} />
-      </Layout>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+
+              <LegalModal open={legalOpen} onClose={closeLegal} defaultTab={legalTab} />
+            </Layout>
+          }
+        />
+      </Routes>
     </Router>
   );
 }
