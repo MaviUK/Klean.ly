@@ -11,10 +11,16 @@ const PLATFORM_HOSTS = new Set([
   "127.0.0.1",
 ]);
 
+type DomainLookup = {
+  cleaners: { slug: string } | Array<{ slug: string }> | null;
+};
+
 export default function CustomDomainResolver() {
   const hostname = window.location.hostname.toLowerCase().replace(/\.$/, "");
   const [slug, setSlug] = useState<string | null>(null);
-  const [checking, setChecking] = useState(!PLATFORM_HOSTS.has(hostname) && !hostname.endsWith(".netlify.app"));
+  const [checking, setChecking] = useState(
+    !PLATFORM_HOSTS.has(hostname) && !hostname.endsWith(".netlify.app")
+  );
 
   useEffect(() => {
     if (!checking) return;
@@ -30,17 +36,33 @@ export default function CustomDomainResolver() {
 
       if (cancelled) return;
       if (!error) {
-        const cleaners = (data as any)?.cleaners;
+        const cleaners = (data as DomainLookup | null)?.cleaners;
         setSlug(Array.isArray(cleaners) ? cleaners[0]?.slug ?? null : cleaners?.slug ?? null);
       }
       setChecking(false);
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [checking, hostname]);
 
-  if (checking) return <div className="min-h-screen grid place-items-center bg-slate-50">Loading…</div>;
-  if (!slug) return <div className="min-h-screen grid place-items-center bg-slate-50 px-6"><div className="max-w-lg text-center"><h1 className="text-3xl font-bold">Domain not connected</h1><p className="mt-3 text-slate-600">This domain has not been verified for a Klean.ly business website yet.</p></div></div>;
+  if (checking) {
+    return <div className="min-h-screen grid place-items-center bg-slate-50">Loading…</div>;
+  }
+
+  if (!slug) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50 px-6">
+        <div className="max-w-lg text-center">
+          <h1 className="text-3xl font-bold">Domain not connected</h1>
+          <p className="mt-3 text-slate-600">
+            This domain has not been verified for a Klean.ly business website yet.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return <PublicCleanerSite forcedSlug={slug} customDomain />;
 }
