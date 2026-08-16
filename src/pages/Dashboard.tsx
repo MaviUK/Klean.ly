@@ -12,6 +12,7 @@ type Cleaner = {
   business_name: string | null;
   logo_url: string | null;
   address: string | null;
+  slug: string;
   subscription_status: "active" | "incomplete" | "past_due" | "canceled" | null;
 };
 
@@ -89,17 +90,17 @@ export default function Dashboard() {
       null;
 
     async function postVerify() {
-  if (!sessionId) return;
-  try {
-    await fetch("/.netlify/functions/stripe-postverify", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, checkout_session: sessionId }),
-    });
-  } catch {
-    // non-fatal
-  }
-}
+      if (!sessionId) return;
+      try {
+        await fetch("/.netlify/functions/stripe-postverify", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, checkout_session: sessionId }),
+        });
+      } catch {
+        // non-fatal
+      }
+    }
 
     async function releaseLockIfAny() {
       if (!lockId) return;
@@ -358,6 +359,10 @@ export default function Dashboard() {
               <div className="flex flex-col sm:flex-row gap-2 sm:justify-end lg:justify-start">
                 <Link to="/settings" className="btn btn-primary w-full sm:w-auto">
                   Edit profile
+                </Link>
+
+                <Link to="/website" className="btn w-full sm:w-auto">
+                  Website
                 </Link>
 
                 <Link to="/invoices" className="btn w-full sm:w-auto">
