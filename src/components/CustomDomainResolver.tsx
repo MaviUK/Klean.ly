@@ -3,6 +3,8 @@ import { supabase } from "../lib/supabase";
 import PublicCleanerSite from "../pages/PublicCleanerSite";
 
 const PLATFORM_HOSTS = new Set([
+  "klean.ly",
+  "www.klean.ly",
   "findabincleaner.com",
   "www.findabincleaner.com",
   "localhost",
