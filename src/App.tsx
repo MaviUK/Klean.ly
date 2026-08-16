@@ -12,6 +12,7 @@ import Settings from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import Analytics from "./pages/Analytics";
 import Invoices from "./pages/Invoices";
+import Bookings from "./pages/Bookings";
 import Website from "./pages/Website";
 import WebsiteGallery from "./pages/WebsiteGallery";
 import PublicCleanerSite from "./pages/PublicCleanerSite";
@@ -33,5 +34,5 @@ export default function App() {
   useEffect(() => { supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null)); const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null)); return () => sub.subscription.unsubscribe(); }, []);
   if (isCustomHost()) return <Router><CustomDomainResolver /></Router>;
   const loading = user === undefined; const protectedPage = (page: ReactNode) => <ProtectedRoute user={user} loading={loading}><TermsGate>{page}</TermsGate></ProtectedRoute>;
-  return <Router><Routes><Route path="/cleaner/:slug" element={<PublicCleanerSite />} /><Route path="*" element={<Layout><Routes><Route path="/" element={<Landing />} /><Route path="/login" element={<Login />} /><Route path="/onboarding" element={<Onboarding />} /><Route path="/dashboard" element={protectedPage(<Dashboard />)} /><Route path="/settings" element={protectedPage(<Settings />)} /><Route path="/website" element={protectedPage(<Website />)} /><Route path="/website/gallery" element={protectedPage(<WebsiteGallery />)} /><Route path="/analytics" element={protectedPage(<Analytics />)} /><Route path="/invoices" element={protectedPage(<Invoices />)} /><Route path="/_debug" element={<div className="container mx-auto max-w-6xl px-4 sm:px-6 py-12">Router is working</div>} /><Route path="*" element={<NotFound />} /></Routes><LegalModal open={legalOpen} onClose={closeLegal} defaultTab={legalTab} /></Layout>} /></Routes></Router>;
+  return <Router><Routes><Route path="/cleaner/:slug" element={<PublicCleanerSite />} /><Route path="*" element={<Layout><Routes><Route path="/" element={<Landing />} /><Route path="/login" element={<Login />} /><Route path="/onboarding" element={<Onboarding />} /><Route path="/dashboard" element={protectedPage(<Dashboard />)} /><Route path="/settings" element={protectedPage(<Settings />)} /><Route path="/website" element={protectedPage(<Website />)} /><Route path="/website/gallery" element={protectedPage(<WebsiteGallery />)} /><Route path="/analytics" element={protectedPage(<Analytics />)} /><Route path="/invoices" element={protectedPage(<Invoices />)} /><Route path="/bookings" element={protectedPage(<Bookings />)} /><Route path="/_debug" element={<div className="container mx-auto max-w-6xl px-4 sm:px-6 py-12">Router is working</div>} /><Route path="*" element={<NotFound />} /></Routes><LegalModal open={legalOpen} onClose={closeLegal} defaultTab={legalTab} /></Layout>} /></Routes></Router>;
 }
