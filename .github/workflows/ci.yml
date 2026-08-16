@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-      - agent/public-cleaner-sites
+      - "agent/**"
 
 permissions:
   contents: read
