@@ -29,13 +29,14 @@ export default function CleanerBookingModal({ open, onClose, cleanerId, business
     setSending(true);
     try {
       const acceptedAt = new Date().toISOString();
-      const { error: insertError } = await supabase.from("cleaner_booking_requests").insert({
+      const { data: booking, error: insertError } = await supabase.from("cleaner_booking_requests").insert({
         cleaner_id: cleanerId, service_offering_id: selected.id, service_name: serviceName(selected), service_variant: selected.variant,
         price_cents: selected.price_cents, customer_name: name.trim(), email: email.trim(), phone: phone.trim(), address: address.trim(), postcode: postcode.trim() || null,
         notes: notes.trim() || null, terms_accepted: true, terms_version: "2026-08", terms_accepted_at: acceptedAt, source: "cleaner_site",
-      });
+      }).select("id").single();
       if (insertError) throw insertError;
       recordEventFetch({ cleanerId, event: "click_message", meta: { source: "cleaner_site_booking", service_id: selected.id } }).catch(() => undefined);
+      if (booking?.id) fetch("/.netlify/functions/booking-notification", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId: booking.id, action: "new_booking" }) }).catch(() => undefined);
       setSent(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not send your booking request."); }
     finally { setSending(false); }
