@@ -10,6 +10,7 @@ type Props = {
   primaryColor: string;
   accentColor: string;
   selectedServiceId?: string | null;
+  initialServiceId?: string | null;
 };
 
 const serviceName = (service: Service) => {
@@ -18,8 +19,9 @@ const serviceName = (service: Service) => {
 };
 const price = (pence: number | null) => pence == null ? "Price confirmed by cleaner" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 
-export default function CleanerBookingForm({ cleanerId, businessName, services, primaryColor, accentColor, selectedServiceId }: Props) {
-  const [serviceId, setServiceId] = useState(selectedServiceId || services[0]?.id || "");
+export default function CleanerBookingForm({ cleanerId, businessName, services, primaryColor, accentColor, selectedServiceId, initialServiceId }: Props) {
+  const preferredServiceId = selectedServiceId ?? initialServiceId ?? null;
+  const [serviceId, setServiceId] = useState(preferredServiceId || services[0]?.id || "");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -32,9 +34,9 @@ export default function CleanerBookingForm({ cleanerId, businessName, services, 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (selectedServiceId) setServiceId(selectedServiceId);
+    if (preferredServiceId) setServiceId(preferredServiceId);
     else if (!serviceId && services[0]?.id) setServiceId(services[0].id);
-  }, [selectedServiceId, services, serviceId]);
+  }, [preferredServiceId, services, serviceId]);
 
   const selected = services.find((service) => service.id === serviceId) || null;
 
