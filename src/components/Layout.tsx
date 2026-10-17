@@ -233,6 +233,13 @@ const Layout: React.FC<React.PropsWithChildren> = ({ children }) => {
                     Dashboard
                   </Link>
 
+                  <Link
+                    to="/business"
+                    className="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-100"
+                  >
+                    Business
+                  </Link>
+
                   <button
                     type="button"
                     onClick={handleLogout}
