@@ -307,6 +307,9 @@ export default function Dashboard() {
             <p className="muted mt-1">Choose an industry to manage analytics & service areas.</p>
           )}
         </div>
+        <Link to="/business" className="inline-flex items-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
+          Open Klean.ly Business →
+        </Link>
       </div>
 
       {banner && (
