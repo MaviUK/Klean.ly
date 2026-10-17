@@ -37,7 +37,6 @@ function updatePreview() {
   document.documentElement.style.setProperty("--tenant-color", draft.primaryColor);
   setText("colour-output", draft.primaryColor.toUpperCase());
 }
-}
 function renderProvider(provider, required) {
   const card = document.createElement("article");
   card.className = "provider-card";
