@@ -32,7 +32,25 @@ No npm packages or external accounts are required:
     cd white-label
     npm test
 
-Run `python3 -m http.server 8080 --directory installer` from the `white-label` directory and visit http://localhost:8080 to inspect the setup planning wizard (ES modules do not work reliably from file://). For hosting as its **own** Netlify site, configure Base directory = white-label and Publish directory = installer. Do NOT change the settings of the live Klean.ly Netlify project.
+Run `python3 -m http.server 8080 --directory installer` from the `white-label` directory and visit http://localhost:8080 to inspect the setup planning wizard (ES modules do not work reliably from file://). For hosting as its **own** Netlify site, use the dedicated installer staging project and **never** repurpose the existing directory's Netlify project.
+
+### Installer staging configuration
+
+Netlify site: `kleanly-business-installer-staging`
+
+- Repository: `MaviUK/Klean.ly`
+- Production branch: `agent/white-label-installer-foundation` (not `main`)
+- Base directory: `white-label`
+- Package directory: blank
+- Build command: `npm test` (enforced by `white-label/netlify.toml`)
+- Publish directory: `installer` (enforced by `white-label/netlify.toml`)
+- Functions: **none**. The directory's root `netlify/functions` must not be deployed here.
+
+To correct a site created with the repository's default `main` branch, go to **Project configuration > Developer settings > Continuous deployment > Branches and deploy contexts** and change the production branch. Then open **Build settings** under Continuous deployment, set the base directory and deploy again.
+
+Before configuring any provider credentials, inspect the new deploy. It should use a commit from `agent/white-label-installer-foundation` and list **no directory functions** or scheduled billing tasks. The static wizard has no authentication or OAuth yet; avoid entering API keys or real customer data.
+
+Do NOT change the settings of the live Klean.ly Netlify project.
 
 ## Pilot (NI Bin Guy)
 
