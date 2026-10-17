@@ -4,6 +4,7 @@ const STORAGE_KEY = "kleanly_business_setup_draft_v1";
 const STEP_COUNT = 4;
 let step = 0;
 let draft = { name: "", domain: "", logoUrl: "", primaryColor: "#059669", desiredProviders: [...requiredProviderIds] };
+let oauthTest = { configured: false, verified: false };
 
 function byId(id) { return document.getElementById(id); }
 function setText(id, value) { byId(id).textContent = value; }
@@ -56,7 +57,10 @@ function renderProvider(provider, required) {
   description.textContent = provider.description;
   const detail = document.createElement("div");
   detail.className = "provider-detail";
-  detail.textContent = provider.status + ". " + provider.secret;
+  detail.textContent = provider.id === "supabase"
+    ? "This authorisation test does not retain tokens or create a Supabase project. A permanent connection will require a Klean.ly account and encrypted credential vault."
+    : provider.status + ". " + provider.secret;
+  if (provider.id === "supabase" && oauthTest.verified) status.textContent = "Test verified";
   const bottom = document.createElement("div");
   bottom.className = "provider-bottom";
   if (provider.link) {
@@ -93,6 +97,17 @@ function renderProvider(provider, required) {
     bottom.append(label);
   }
   card.append(top, heading, description, detail, bottom);
+  if (provider.id === "supabase") {
+    const connect = document.createElement("button");
+    connect.type = "button";
+    connect.className = "action-button provider-oauth";
+    connect.textContent = oauthTest.configured ? "Test Supabase authorisation ↗" : "Authorisation setup pending";
+    connect.disabled = !oauthTest.configured;
+    connect.addEventListener("click", () => {
+      window.location.assign("/.netlify/functions/supabase-oauth-start");
+    });
+    card.append(connect);
+  }
   return card;
 }
 function renderProviders() {
@@ -169,3 +184,39 @@ document.querySelectorAll("[data-step]").forEach((button) => {
 byId("download-manifest").addEventListener("click", downloadManifest);
 updatePreview();
 goTo(0);
+
+// Supabase OAuth pilot: status is verified by the server, never trusted from
+// a query string. This test does not store API credentials or grant admin access.
+async function refreshSupabaseOAuthStatus() {
+  const queryResult = new URLSearchParams(window.location.search).get("supabase_test");
+  const messages = {
+    configuration_required: "The Client Secret must be set securely in the staging Netlify site before testing.",
+    denied: "Supabase authorisation was cancelled or denied.",
+    expired_or_invalid: "The authorisation session expired or did not match. Try again.",
+    invalid_response: "Supabase did not return a valid authorisation code. Try again.",
+    exchange_failed: "Supabase could not finish the token exchange. Check the client secret and callback URL.",
+  };
+  try {
+    const response = await fetch("/.netlify/functions/supabase-oauth-status", {
+      credentials: "same-origin", cache: "no-store"
+    });
+    if (!response.ok) throw new Error("Status endpoint unavailable");
+    const status = await response.json();
+    oauthTest = { configured: status.configured === true, verified: status.verified === true };
+    if (queryResult === "verified") {
+      setText("supabase-oauth-result", oauthTest.verified
+        ? "Supabase authorisation was verified successfully. This is a 15-minute TEST confirmation only: no access or refresh tokens were retained."
+        : "The authorisation confirmation could not be validated. Please retry.");
+      if (oauthTest.verified) goTo(1);
+    } else if (messages[queryResult]) {
+      setText("supabase-oauth-result", messages[queryResult]);
+      goTo(1);
+    } else if (oauthTest.verified) {
+      setText("supabase-oauth-result", "Authorisation test passed for this browser. No credentials are saved.");
+    }
+  } catch {
+    setText("supabase-oauth-result", "The Supabase authorisation test is not available yet. No accounts were connected.");
+  }
+  renderProviders();
+}
+refreshSupabaseOAuthStatus();

@@ -18,6 +18,8 @@ Each deployment is logically and physically separate: no shared customer databas
 - Portable static **installer planning wizard** at installer/index.html.
 - The wizard records **only non-secret company branding choices** in browser localStorage. It never asks for API tokens.
 - Download a redacted deployment manifest. It is NOT proof of connected providers.
+- Supabase OAuth **verification-only** via three Netlify Functions: secure PKCE/state, server-side code exchange, then discard access/refresh tokens. Status is signed in an HttpOnly temporary cookie; it is never a durable company connection.
+- A separate Supabase OAuth Client ID is set on the **staging site's Functions environment**. The client secret must be configured by the administrator directly in Netlify, never pasted into chat or checked into GitHub.
 - Versioned, dedicated-database-only SQL schema in blueprint/0001_foundation.sql.
 - A guarded **operator-run pilot installer** in provisioner/install.mjs. It can install the schema into an explicitly approved, already-created customer Supabase project via the Management API. Tokens are supplied as secure server/terminal environment variables and are never sent to the browser.
 
@@ -76,3 +78,18 @@ Supabase docs:
 - https://supabase.com/docs/guides/integrations/build-a-supabase-oauth-integration
 - https://supabase.com/docs/reference/api/v1-run-a-query
 - https://supabase.com/docs/guides/database/postgres/row-level-security
+
+## Supabase authorisation test (staging only)
+
+The site uses an OAuth app configured with:
+
+- Callback URL: `https://kleanly-business-installer-staging.netlify.app/.netlify/functions/supabase-oauth-callback`
+- Client ID: `a3ff2237-4e0a-41de-982f-079176f54599` (not a secret; stored in staging Netlify Functions environment)
+- Client Secret: supply `SUPABASE_OAUTH_CLIENT_SECRET` via **Netlify > Project configuration > Environment variables**, marking it as **secret** and scoped to **Functions** in the **production** context of the installer staging site.
+- Deploy again after adding or rotating secrets; Netlify runtime environment is bound to the deployment.
+
+Never supply the secret in chat, source code or a browser form. It belongs only to the **staging** Netlify project. The static HTML has no access to it.
+
+The Supabase OAuth API redirects to the callback above. The server verifies signed state and PKCE, exchanges the code with Supabase, and discards all credentials; a signed HttpOnly cookie only confirms the proof for fifteen minutes. The UI always says **Test verified**, never permanently connected. Production onboarding requires verified Klean.ly user identity, customer association, a durable encrypted token vault, revocation, scope checks and explicit billing consent *before* storing or using any company access tokens.
+
+The OAuth app scopes can include project/database write, but **this test never writes to a project**; no SQL or Supabase Management API resource calls occur.

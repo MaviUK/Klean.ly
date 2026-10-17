@@ -19,3 +19,9 @@
 @media(max-width:1000px){.sidebar{width:230px;flex-basis:230px;padding:22px 12px}.panel-grid{grid-template-columns:1fr}.preview-card{max-width:520px}.provider-grid{grid-template-columns:1fr}.topbar{padding:21px 26px}.content{padding:30px 26px}}
 @media(max-width:680px){.shell{display:block}.sidebar{min-height:0;width:100%;display:block;padding:12px 16px}.brand{padding:2px 0 12px}.sidebar-label,.sidebar-bottom{display:none}.step-list{display:flex;overflow-x:auto;gap:6px;padding-bottom:6px}.step-list li{flex:0 0 auto}.step-list li button{padding:8px 11px}.step-list li small{display:none}.step-list .number{display:none}.step-list strong{font-size:11px}.topbar{min-height:70px;padding:13px 17px}.status-pill{font-size:9px;padding:7px;max-width:165px}.content{padding:22px 17px}.section-heading h1{font-size:30px}.section-heading p{font-size:13px}.form-card,.preview-card{padding:20px}.export-panel{display:block}.export-panel button{margin-top:18px;width:100%}.saved{display:none}.bottom-actions{margin-top:27px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Staging-only authorisation test UI. */
+.provider-oauth{margin-top:8px;width:100%}
+.provider-oauth:disabled{opacity:.58;cursor:not-allowed;box-shadow:none}
+.oauth-feedback{padding:15px 18px;background:#eaf7ef;border:1px solid #c5e7d4;color:#215f45;border-radius:12px;margin-bottom:20px;font-size:12px;line-height:1.6}
+.oauth-feedback:empty{display:none}

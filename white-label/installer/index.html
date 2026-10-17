@@ -68,7 +68,8 @@
         </section>
         <section class="step-panel" data-view="1" hidden>
           <div class="section-heading"><span class="overline">STEP 02 — INFRASTRUCTURE</span><h1>Owned by the company.</h1><p>Each company uses a completely separate Supabase project and hosting site. The production connector will request permission to create and configure these resources.</p></div>
-          <div class="notice"><strong>Account authorisation is not yet live.</strong><p>These are setup instructions, not working OAuth connections. You can open the providers' dashboards now. Never enter tokens in this preview.</p></div>
+          <div class="notice"><strong>Supabase OAuth test — no permanent connection yet.</strong><p>Once the Client Secret is configured on the server, you can authorise your Supabase account to verify the secure callback. The installer discards the access and refresh tokens immediately. No databases are created or changed.</p></div>
+          <div id="supabase-oauth-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div id="infrastructure-list" class="provider-grid"></div>
         </section>
         <section class="step-panel" data-view="2" hidden>
