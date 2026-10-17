@@ -32,7 +32,7 @@ No npm packages or external accounts are required:
     cd white-label
     npm test
 
-Open installer/index.html locally to inspect the setup planning wizard. For hosting as its **own** Netlify site, configure Base directory = white-label and Publish directory = installer. Do NOT change the settings of the live Klean.ly Netlify project.
+Run `python3 -m http.server 8080 --directory installer` from the `white-label` directory and visit http://localhost:8080 to inspect the setup planning wizard (ES modules do not work reliably from file://). For hosting as its **own** Netlify site, configure Base directory = white-label and Publish directory = installer. Do NOT change the settings of the live Klean.ly Netlify project.
 
 ## Pilot (NI Bin Guy)
 
