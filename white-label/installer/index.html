@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Klean.ly Business — Setup Studio</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">K<span>.</span></div>
+        <div><strong>Klean.ly</strong><small>BUSINESS SETUP</small></div>
+      </div>
+      <div class="sidebar-label">YOUR INSTALLATION</div>
+      <ol id="step-list" class="step-list" aria-label="Setup steps">
+        <li><button type="button" data-step="0"><span class="number">01</span><span><strong>Company identity</strong><small>Logo, name & colours</small></span></button></li>
+        <li><button type="button" data-step="1"><span class="number">02</span><span><strong>Infrastructure</strong><small>Supabase & Netlify</small></span></button></li>
+        <li><button type="button" data-step="2"><span class="number">03</span><span><strong>Integrations</strong><small>Maps, email & payments</small></span></button></li>
+        <li><button type="button" data-step="3"><span class="number">04</span><span><strong>Review setup</strong><small>Export your blueprint</small></span></button></li>
+      </ol>
+      <div class="sidebar-bottom">
+        <div class="shield-icon" aria-hidden="true">◆</div>
+        <strong>Completely independent</strong>
+        <p>Every installation uses the company's own hosting, database, domain and connected services.</p>
+      </div>
+    </aside>
+    <main class="workspace">
+      <header class="topbar">
+        <div><span class="eyebrow">KLEAN.LY / WHITE-LABEL</span><p class="topbar-title">Installation planning</p></div>
+        <span class="status-pill"><span class="dot"></span> Development preview — no accounts connected</span>
+      </header>
+      <div class="content">
+        <div class="progress"><span>SETUP PROGRESS</span><span id="progress-text">1 OF 4</span></div>
+        <div class="progress-track"><div id="progress-bar"></div></div>
+        <section class="step-panel" data-view="0">
+          <div class="section-heading">
+            <span class="overline">STEP 01 — IDENTITY</span>
+            <h1>Make it their own.</h1>
+            <p>The customer's logo, business name and colours appear throughout their management system. Klean.ly branding stays out of the customer-facing installation.</p>
+          </div>
+          <div class="panel-grid">
+            <form id="identity-form" class="form-card" novalidate>
+              <label for="business-name">Business name <span class="required">*</span></label>
+              <input id="business-name" name="name" maxlength="160" autocomplete="organization" placeholder="e.g. NI Bin Guy" required />
+              <label for="business-domain">Custom domain <span class="hint">(optional)</span></label>
+              <input id="business-domain" name="domain" placeholder="e.g. portal.mycompany.co.uk" spellcheck="false" autocomplete="off" />
+              <label for="business-logo">Logo URL <span class="hint">(HTTPS only, optional)</span></label>
+              <input id="business-logo" name="logoUrl" type="url" placeholder="https://example.com/logo.png" autocomplete="off" />
+              <label for="business-colour">Brand colour</label>
+              <div class="color-field"><input type="color" id="business-colour" name="primaryColor" value="#059669" /><output id="colour-output" for="business-colour">#059669</output></div>
+              <p id="identity-error" class="field-error" role="alert"></p>
+              <p class="form-caption">Only non-secret branding details are saved on this device while planning the installation.</p>
+            </form>
+            <div class="preview-card">
+              <p class="preview-label">LIVE BRAND PREVIEW</p>
+              <div class="preview-window">
+                <div class="preview-nav"><span id="preview-mark" class="preview-mark">N</span><strong id="preview-name">Your company</strong><span class="preview-menu">≡</span></div>
+                <div class="preview-banner"><small>YOUR BUSINESS DASHBOARD</small><strong id="preview-headline">Welcome back</strong><p>Customers • Rounds • Jobs • Billing</p></div>
+                <div class="preview-tiles"><div><span></span><b>Customers</b></div><div><span></span><b>Today's Jobs</b></div></div>
+              </div>
+              <p class="preview-caption">The finished system will be hosted under this company's own brand.</p>
+            </div>
+          </div>
+        </section>
+        <section class="step-panel" data-view="1" hidden>
+          <div class="section-heading"><span class="overline">STEP 02 — INFRASTRUCTURE</span><h1>Owned by the company.</h1><p>Each company uses a completely separate Supabase project and hosting site. The production connector will request permission to create and configure these resources.</p></div>
+          <div class="notice"><strong>Account authorisation is not yet live.</strong><p>These are setup instructions, not working OAuth connections. You can open the providers' dashboards now. Never enter tokens in this preview.</p></div>
+          <div id="infrastructure-list" class="provider-grid"></div>
+        </section>
+        <section class="step-panel" data-view="2" hidden>
+          <div class="section-heading"><span class="overline">STEP 03 — YOUR SERVICES</span><h1>Connect what you use.</h1><p>Maps, email, card payments, direct debits and SMS will all use the company's own accounts and billing. Choose which integrations this installation will need.</p></div>
+          <div class="notice"><strong>Providers are not connected by selecting them.</strong><p>Preferences are saved in the installation blueprint. Actual authorisation, API-key verification and secure server-side configuration come next.</p></div>
+          <div id="integration-list" class="provider-grid"></div>
+        </section>
+        <section class="step-panel" data-view="3" hidden>
+          <div class="section-heading"><span class="overline">STEP 04 — INSTALLATION BLUEPRINT</span><h1>Ready to prepare.</h1><p>Review the company details and download a non-secret setup manifest to use with the new installation service.</p></div>
+          <div class="summary-card">
+            <div class="summary-row"><span>Business</span><strong id="summary-name">—</strong></div>
+            <div class="summary-row"><span>Domain</span><strong id="summary-domain">Not yet set</strong></div>
+            <div class="summary-row"><span>Infrastructure</span><strong>Dedicated Supabase + Netlify</strong></div>
+            <div class="summary-row"><span>Optional integrations</span><strong id="summary-integrations">None</strong></div>
+            <div class="summary-row"><span>Data isolation</span><strong>Independent company database</strong></div>
+          </div>
+          <div class="export-panel">
+            <div><h2>Installation manifest</h2><p>No API keys, passwords or private data are included.</p></div>
+            <button type="button" id="download-manifest" class="action-button">Download blueprint ↓</button>
+          </div>
+          <div class="notice secondary"><strong>Next development milestone</strong><p>Secure Klean.ly login, Supabase OAuth, Netlify authorisation, encrypted token storage, automated provisioning, and owner invitation. An exported blueprint is not a deployed system.</p></div>
+        </section>
+        <div class="bottom-actions">
+          <button id="previous-step" type="button" class="text-button" disabled>← Previous</button>
+          <span id="save-indicator" class="saved">Draft stays on this device</span>
+          <button id="next-step" type="button" class="action-button">Continue →</button>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
