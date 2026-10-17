@@ -1,0 +1,33 @@
+name: White-label foundation
+
+on:
+  push:
+    branches:
+      - "agent/white-label-*"
+    paths:
+      - "white-label/**"
+      - ".github/workflows/white-label.yml"
+  pull_request:
+    paths:
+      - "white-label/**"
+      - ".github/workflows/white-label.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check installer syntax
+        run: |
+          node --check white-label/installer/catalog.mjs
+          node --check white-label/installer/app.mjs
+          node --check white-label/provisioner/install.mjs
+      - name: Run white-label tests
+        working-directory: white-label
+        run: npm test
