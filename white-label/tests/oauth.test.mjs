@@ -8,7 +8,7 @@ import start from "../netlify/functions/supabase-oauth-start.mjs";
 import callback from "../netlify/functions/supabase-oauth-callback.mjs";
 import status from "../netlify/functions/supabase-oauth-status.mjs";
 
-const clientId = "a3ff2237-4e0a-41de-982f-079176f54599";
+const clientId = "7f3c6a9f-2063-4424-bacf-24a71b0c8321";
 const testSecret = "fake_unit_test_secret_0123456789";
 
 test("PKCE flow and state have adequate entropy and expire", () => {

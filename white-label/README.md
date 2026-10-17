@@ -84,7 +84,7 @@ Supabase docs:
 The site uses an OAuth app configured with:
 
 - Callback URL: `https://kleanly-business-installer-staging.netlify.app/.netlify/functions/supabase-oauth-callback`
-- Client ID: `a3ff2237-4e0a-41de-982f-079176f54599` (not a secret; stored in staging Netlify Functions environment)
+- Client ID: `7f3c6a9f-2063-4424-bacf-24a71b0c8321` (not a secret; stored in staging Netlify Functions environment)
 - Client Secret: supply `SUPABASE_OAUTH_CLIENT_SECRET` via **Netlify > Project configuration > Environment variables**, marking it as **secret** and scoped to **Functions** in the **production** context of the installer staging site.
 - Deploy again after adding or rotating secrets; Netlify runtime environment is bound to the deployment.
 
