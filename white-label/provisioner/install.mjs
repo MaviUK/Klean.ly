@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const MIGRATION_URL = new URL("../blueprint/0001_foundation.sql", import.meta.url);
 const API_BASE = "https://api.supabase.com/v1";
-const REF_PATTERN = /^[a-z]{20}$/i;
+const REF_PATTERN = /^[a-z0-9]{20}$/i;
 
 export function parseArgs(argv) {
   const options = { ref: "", apply: false, confirm: "", help: false };
@@ -20,7 +20,7 @@ export function parseArgs(argv) {
 }
 
 export function validateProject(ref, projectName = "") {
-  if (!REF_PATTERN.test(ref)) throw new Error("Expected a 20-letter Supabase project ref.");
+  if (!REF_PATTERN.test(ref)) throw new Error("Expected a 20-character Supabase project ref (letters or digits).");
   const protectedName = projectName.trim().toLowerCase().replace(/[\s_-]/g, "");
   if (protectedName === "klean.ly" || protectedName === "kleanly" || protectedName.includes("findabincleaner")) {
     throw new Error("Refusing to install in the Klean.ly directory project. Create a dedicated business project first.");
