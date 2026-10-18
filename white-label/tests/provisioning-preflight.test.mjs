@@ -76,6 +76,12 @@ test("inventory uses only cookie-bound org and decrypts server-side; never sends
   assert.equal(queries,1);
   assert.equal(requests,1);
   assert.deepEqual(inventory,{observedProjectCount:1,mayHaveMore:false});
+  await assert.rejects(() => readOrganizationProjectInventory(session, {
+    db, key, fetchFn: async () => new Response("Forbidden", {status:403}),
+  }), error => error.code === "projects_permission_denied");
+  await assert.rejects(() => readOrganizationProjectInventory(session, {
+    db, key, fetchFn: async () => Response.json({unknown: "shape"}),
+  }), error => error.code === "projects_response_invalid");
   await assert.rejects(()=>readOrganizationProjectInventory({
     ...session,organization_slug:"../../other-organization"
   },{db,key,fetchFn:async()=>{throw Error("Must never fetch bad slug");}}));
@@ -138,6 +144,28 @@ test("readiness validates both grants, reports counts and cannot authorize creat
     });
     const error=await brokenInventory(request());
     assert.equal(error.status,503);
-    assert.equal((await error.json()).installationsCreated,false);
+    const body=await error.json();
+    assert.equal(body.installationsCreated,false);
+    assert.equal(body.code,"projects_lookup_failed");
+    assert.doesNotMatch(JSON.stringify(body),/private-oauth-access-token|csrf-value-for-tests/);
+    const deniedProjects=createProvisioningPreflight({
+      getSession:async()=>session,
+      checkSupabase:async()=>({state:"connected"}),
+      checkNetlify:async()=>({state:"connected"}),
+      getProjects:async()=>{const e=new Error("Access rejected");e.name="ProvisioningPreflightError";e.code="projects_permission_denied";throw e;},
+    });
+    // Do not trust arbitrary error names; only the class from the server is whitelisted.
+    assert.equal((await (await deniedProjects(request())).json()).code, "projects_lookup_failed");
+    const brokenSupabase=createProvisioningPreflight({
+      getSession:async()=>session,
+      checkSupabase:async()=>{throw Error("Bearer SHOULD_NOT_LEAK");},
+      checkNetlify:async()=>({state:"connected"}),
+      getProjects:async()=>{throw Error("Should never list projects");},
+    });
+    const rejected=await brokenSupabase(request());
+    assert.equal(rejected.status,503);
+    const rejectedPayload=await rejected.json();
+    assert.equal(rejectedPayload.code,"supabase_validation_failed");
+    assert.doesNotMatch(JSON.stringify(rejectedPayload),/Bearer SHOULD_NOT_LEAK/);
   });
 });
