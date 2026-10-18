@@ -231,6 +231,8 @@ export function createInstallationPreviewHandler({
       if (!isObject(parsed) || !allowedKeys(parsed, new Set(["blueprint"]))) {
         throw new InstallationPlanError("The setup blueprint has an unsupported format.");
       }
+      // Validate untrusted browser input before any extra pilot-ledger lookup.
+      validateBlueprint(parsed.blueprint);
       const readiness = await readinessResponse.json();
       const pilotRecord = await getPilotProject(request);
       const plan = createInstallationPlan(parsed.blueprint, readiness, new Date(), pilotRecord);
