@@ -12,6 +12,9 @@ let netlifyState = { configured: false, authenticated: false, connected: false, 
 let preflightInProgress = false;
 let installationPreviewPending = false;
 let freeCapacityPending = false;
+let pilotProposalPending = false;
+let pilotCreationPending = false;
+let pilotProposal = null;
 
 function byId(id) { return document.getElementById(id); }
 function setText(id, value) { byId(id).textContent = value; }
@@ -219,6 +222,7 @@ function renderProviders() {
   byId("check-provisioning-readiness").disabled = preflightInProgress || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("preview-installation-plan").disabled = installationPreviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("check-free-project-capacity").disabled = freeCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-test-project").disabled = pilotProposalPending || pilotCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -290,6 +294,10 @@ byId("download-manifest").addEventListener("click", downloadManifest);
 byId("check-provisioning-readiness").addEventListener("click", checkProvisioningReadiness);
 byId("preview-installation-plan").addEventListener("click", previewInstallation);
 byId("check-free-project-capacity").addEventListener("click", checkFreeProjectCapacity);
+byId("review-test-project").addEventListener("click", reviewTestProject);
+byId("pilot-confirm-phrase").addEventListener("input", updatePilotApprovalState);
+byId("pilot-accept-costs").addEventListener("change", updatePilotApprovalState);
+byId("test-project-approval").addEventListener("submit", createOneTestProject);
 updatePreview();
 goTo(0);
 
