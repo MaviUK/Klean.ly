@@ -93,6 +93,11 @@
           </div>
           <div id="provisioning-readiness-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div class="export-panel">
+            <div><h2>Check free project capacity</h2><p>Ask Supabase to confirm the connected organisation's current plan and count all projects visible to the account. This is a read-only check; project creation remains locked.</p></div>
+            <button type="button" id="check-free-project-capacity" class="action-button" disabled>Check free project availability</button>
+          </div>
+          <div id="free-project-capacity-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <div class="export-panel">
             <div><h2>Preview automatic installation</h2><p>See the proposed steps for this company using your securely connected accounts. This is a read-only preview: it cannot create projects or sites, deploy code, or approve charges.</p></div>
             <button type="button" id="preview-installation-plan" class="action-button" disabled>Preview installation</button>
           </div>
