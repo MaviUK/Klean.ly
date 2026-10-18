@@ -23,6 +23,7 @@ let crmSiteProposalPending = false;
 let crmSiteCapacityPending = false;
 let crmSiteApprovalPending = false;
 let crmSiteCreationPending = false;
+let crmDeploymentReviewPending = false;
 let crmSiteApproval = null;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
@@ -241,6 +242,7 @@ function renderProviders() {
   byId("review-crm-site").disabled = crmSiteProposalPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-capacity").disabled = crmSiteCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-site-create").disabled = crmSiteApprovalPending || crmSiteCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-deployment").disabled = crmDeploymentReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -320,6 +322,7 @@ byId("check-owner-readiness").addEventListener("click", checkOwnerLoginReadiness
 byId("review-crm-site").addEventListener("click", reviewCrmSiteProposal);
 byId("review-crm-capacity").addEventListener("click", reviewCrmSiteCapacity);
 byId("review-crm-site-create").addEventListener("click", reviewCrmSiteCreation);
+byId("review-crm-deployment").addEventListener("click", reviewCrmDeploymentReadiness);
 byId("crm-site-confirm-phrase").addEventListener("input", updateCrmSiteCreationState);
 byId("crm-site-accept-credits").addEventListener("change", updateCrmSiteCreationState);
 byId("crm-site-accept-one").addEventListener("change", updateCrmSiteCreationState);
@@ -1236,6 +1239,67 @@ async function createOneCrmSite(event) {
   } finally {
     crmSiteCreationPending = false;
     resetCrmSiteCreationForm();
+    renderProviders();
+  }
+}
+
+async function reviewCrmDeploymentReadiness() {
+  if (crmDeploymentReviewPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  crmDeploymentReviewPending = true;
+  renderProviders();
+  const output = byId("crm-deployment-result");
+  output.classList.remove("is-error");
+  output.classList.remove("is-warning");
+  output.textContent = "Checking the dedicated test CRM website and deployment history (read-only)...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-deployment-readiness", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "CRM deployment check unavailable.");
+    if (data.mode !== "read_only_crm_deployment_readiness" ||
+        data.siteVerified !== true ||
+        data.siteUrl !== "https://kleanly-business-crm-pilot.netlify.app" ||
+        data.teamSlug !== "kleanlytest" ||
+        data.installedCrmSchema !== true ||
+        typeof data.siteHasExistingDeployment !== "boolean" ||
+        typeof data.gitRepositoryLinked !== "boolean" ||
+        typeof data.confirmedFreePlan !== "boolean" ||
+        data.crmAppPackageReady !== false ||
+        data.deploymentEnabled !== false ||
+        data.deploymentAttempted !== false ||
+        data.websiteModified !== false ||
+        data.appDeployed !== false ||
+        data.ownerCreated !== false ||
+        data.emailSent !== false) {
+      throw new Error("The deployment check returned unexpected information.");
+    }
+    const summary = "Verified test CRM host: " + data.siteUrl + ". ";
+    if (data.state === "empty_site_verified" &&
+        data.confirmedFreePlan === true &&
+        data.siteHasExistingDeployment === false &&
+        data.gitRepositoryLinked === false &&
+        data.readyToPrepareCrmPackage === true) {
+      output.textContent = summary +
+        "Netlify Free Plan verified. No deployment or GitHub repository is linked. " +
+        "Your eight-table CRM database is installed separately. " +
+        "Next: package and security-test the CRM web app, then request separate approval to deploy it. " +
+        "No website files or login were created.";
+    } else {
+      output.classList.add("is-warning");
+      output.textContent = summary +
+        "The Netlify site needs review before we can prepare an automated CRM deployment. " +
+        (data.note || "Deployment status has changed.") +
+        " No deployment was attempted.";
+    }
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Deployment status unavailable.") +
+      " No deployment was attempted.";
+  } finally {
+    crmDeploymentReviewPending = false;
     renderProviders();
   }
 }
