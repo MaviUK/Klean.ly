@@ -20,6 +20,7 @@ let crmSchemaApprovalPending = false;
 let crmSchemaInstallPending = false;
 let ownerReadinessPending = false;
 let crmSiteProposalPending = false;
+let crmSiteCapacityPending = false;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
 
@@ -235,6 +236,7 @@ function renderProviders() {
   byId("review-crm-installation").disabled = crmSchemaApprovalPending || crmSchemaInstallPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("check-owner-readiness").disabled = ownerReadinessPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-site").disabled = crmSiteProposalPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-capacity").disabled = crmSiteCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -312,6 +314,7 @@ byId("review-crm-schema").addEventListener("click", reviewCrmSchema);
 byId("review-crm-installation").addEventListener("click", reviewCrmSchemaInstallation);
 byId("check-owner-readiness").addEventListener("click", checkOwnerLoginReadiness);
 byId("review-crm-site").addEventListener("click", reviewCrmSiteProposal);
+byId("review-crm-capacity").addEventListener("click", reviewCrmSiteCapacity);
 byId("crm-schema-confirm-phrase").addEventListener("input", updateCrmSchemaInstallState);
 byId("crm-schema-accept-changes").addEventListener("change", updateCrmSchemaInstallState);
 byId("crm-schema-install-approval").addEventListener("submit", installOneCrmSchema);
@@ -1018,6 +1021,71 @@ async function reviewCrmSiteProposal() {
       " No website was created.";
   } finally {
     crmSiteProposalPending = false;
+    renderProviders();
+  }
+}
+
+async function reviewCrmSiteCapacity() {
+  if (crmSiteCapacityPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  crmSiteCapacityPending = true;
+  renderProviders();
+  const output = byId("crm-capacity-result");
+  output.classList.remove("is-error");
+  output.classList.remove("is-warning");
+  output.textContent = "Checking the approved test team, Free Plan and website limit (read-only)...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-free-site-capacity", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Netlify hosting limits could not be checked.");
+    if (data.mode !== "read_only_crm_free_site_capacity" ||
+        data.teamSlug !== "kleanlytest" ||
+        data.ownerEmail !== "kleanlytest@gerball.co.uk" ||
+        data.connectedNetlifyAccount !== "kleanlytest@gerball.co.uk" ||
+        data.proposedSiteUrl !== "https://kleanly-business-crm-pilot.netlify.app" ||
+        data.confirmedFreePlan !== true ||
+        data.documentedFreeProjectLimit !== 500 ||
+        !Number.isSafeInteger(data.sitesInTeam) ||
+        data.globalNameAvailabilityConfirmed !== false ||
+        data.remainingMonthlyCreditsVerified !== false ||
+        data.providerCostApprovalRequired !== true ||
+        data.creationEnabled !== false ||
+        data.siteCreated !== false ||
+        data.deploymentCreated !== false ||
+        data.emailSent !== false ||
+        data.writeAttempted !== false) {
+      throw new Error("The Netlify hosting check returned unexpected data.");
+    }
+    const label = "Netlify test team: " + data.teamName + " (Free Plan). " +
+      "Existing team websites: " + data.sitesInTeam +
+      " of the documented " + data.documentedFreeProjectLimit + " project limit. ";
+    if (data.matchingNameInChosenTeam === true) {
+      output.classList.add("is-warning");
+      output.textContent = label +
+        "The proposed CRM website already exists in the test team. " +
+        "We must review it rather than create a duplicate. No changes were made.";
+    } else if (data.capacityAppearsAvailable !== true) {
+      output.classList.add("is-warning");
+      output.textContent = label +
+        "Website capacity is not confirmed. Do not proceed with creation. " +
+        "No changes were made.";
+    } else {
+      output.textContent = label +
+        "The team appears to have room for one CRM pilot website, and no " +
+        "matching name was found within this team. Global name availability and " +
+        "the current monthly credit balance have NOT been confirmed. " +
+        "Next we must review the remaining credits and obtain final approval " +
+        "before creating any site. No website, deployment or login was created.";
+    }
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Netlify site capacity unavailable.") +
+      " No website was created.";
+  } finally {
+    crmSiteCapacityPending = false;
     renderProviders();
   }
 }
