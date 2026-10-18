@@ -77,12 +77,17 @@ export function validateProviderTokens(data, previous = null, now = Date.now()) 
 }
 
 export function validateProfile(data) {
-  const userId = data?.id ?? data?.user_id;
+  // Supabase Management API GET /v1/profile returns gotrue_id and
+  // primary_email, not the id/email names used by Supabase Auth clients.
+  // The stable provider user ID is authoritative for portal ownership.
+  const userId = data?.gotrue_id ?? data?.id ?? data?.user_id;
   if (typeof userId !== "string" || !/^[\w:@.-]{1,128}$/.test(userId)) {
     throw new Error("Supabase identity missing a stable user ID");
   }
-  // The email is only for display. Never authorize access based on it.
-  const email = typeof data.email === "string" && data.email.length <= 254 ? data.email : null;
+  // Email is display-only and NEVER grants portal or organisation access.
+  const suppliedEmail = data?.primary_email ?? data?.email;
+  const email = typeof suppliedEmail === "string" && suppliedEmail.length <= 254
+    ? suppliedEmail : null;
   return { userId, email };
 }
 

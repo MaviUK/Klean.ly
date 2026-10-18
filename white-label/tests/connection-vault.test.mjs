@@ -57,7 +57,18 @@ test("provider tokens require both access and refresh, with bounded expiry", () 
 });
 
 test("identity and single-org grant must be provider verified, never browser-selected", () => {
+  // The live Supabase Management API /v1/profile response uses gotrue_id
+  // and primary_email. It does not normally return id/email.
+  assert.deepEqual(validateProfile({
+    gotrue_id: user.userId, primary_email: user.email, username: "test-owner"
+  }), user);
+  // Prefer Supabase Management's authoritative identity over legacy aliases.
+  assert.deepEqual(validateProfile({
+    gotrue_id: user.userId, id: "different-user-id",
+    primary_email: user.email, email: "wrong@example.org",
+  }), user);
   assert.deepEqual(validateProfile({ id: user.userId, email: user.email }), user);
+  assert.throws(() => validateProfile({ primary_email: user.email, username: "someone" }));
   assert.throws(() => validateProfile({ email: user.email }));
   assert.deepEqual(validateOrganizationResponse([{
     id: org.organizationId, name: org.organizationName, slug: org.organizationSlug
@@ -76,7 +87,7 @@ test("profile and organization fetch are hardcoded to Supabase Management API pa
     assert.match(url, /^https:\/\/api\.supabase\.com\/v1\/(profile|organizations)$/);
     assert.equal(opts.headers.Authorization, "Bearer token_goes_here");
     return new Response(JSON.stringify(url.endsWith("/profile") ?
-      { id: user.userId, email: user.email } :
+      { gotrue_id: user.userId, primary_email: user.email, username: "owner" } :
       [{ id: org.organizationId, name: org.organizationName, slug: org.organizationSlug }]
     ), { status: 200 });
   };
