@@ -395,4 +395,53 @@ async function performConnectionAction(action) {
   renderProviders();
 }
 
-refreshSupabaseOAuthStatus();
+
+async function refreshNetlifyOAuthStatus() {
+  const result = new URLSearchParams(window.location.search).get("netlify_result");
+  const messages = {
+    configuration_required: "The Netlify authorisation service is not configured.",
+    signin_required: "Connect Supabase before connecting Netlify.",
+    denied: "Netlify authorisation was cancelled.",
+    invalid_response: "Netlify did not return a valid authorisation code.",
+    expired_or_invalid: "Netlify authorisation expired or did not match. Please try again.",
+    exchange_failed: "Netlify could not finish authorisation. Check the OAuth redirect and credentials.",
+    identity_unavailable: "Netlify could not verify your account. No grant was saved.",
+    account_conflict: "A different Netlify account is linked. Disconnect it before switching.",
+    storage_unavailable: "The secure Netlify grant could not be saved. Please retry.",
+  };
+  try {
+    const response = await fetch("/.netlify/functions/netlify-oauth-status", {
+      credentials: "same-origin", cache: "no-store",
+    });
+    if (!response.ok) throw new Error("Netlify connection unavailable");
+    const data = await response.json();
+    netlifyState = {
+      configured: data.configured === true, authenticated: data.authenticated === true,
+      connected: data.connected === true, identity: data.identity ?? null,
+      connection: data.connection ?? null,
+    };
+    byId("netlify-oauth-result").classList.remove("is-error");
+    if (result === "connected") {
+      setText("netlify-oauth-result", netlifyState.connected
+        ? "Netlify connected securely. No site or deployment has been created."
+        : "Netlify connection was not confirmed. Please retry.");
+      if (netlifyState.connected) goTo(1);
+    } else if (messages[result]) {
+      setText("netlify-oauth-result", messages[result]);
+      byId("netlify-oauth-result").classList.add("is-error");
+      goTo(1);
+    } else if (netlifyState.connected) {
+      setText("netlify-oauth-result", netlifyState.connection?.status === "connected"
+        ? "Netlify account connected. Check its authorisation or disconnect below."
+        : "Netlify needs reauthorisation.");
+    } else {
+      setText("netlify-oauth-result", "");
+    }
+  } catch {
+    setText("netlify-oauth-result", "The Netlify connection service is temporarily unavailable.");
+    byId("netlify-oauth-result").classList.add("is-error");
+  }
+  if (result) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+  renderProviders();
+}
+refreshSupabaseOAuthStatus().then(refreshNetlifyOAuthStatus);
