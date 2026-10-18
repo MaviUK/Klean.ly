@@ -125,6 +125,25 @@
           </div>
           <div id="crm-schema-proposal-result" class="installation-plan-result" role="status" aria-live="polite" hidden></div>
           <div class="export-panel">
+            <div><h2>Prepare one CRM schema installation</h2><p>Recheck the dedicated test database and the single-attempt safety lock before installation. Reviewing is read-only: no tables or accounts will be created.</p></div>
+            <button type="button" id="review-crm-installation" class="action-button" disabled>Review CRM installation</button>
+          </div>
+          <div id="crm-schema-install-proposal-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <form id="crm-schema-install-approval" class="pilot-approval" hidden>
+            <h2>Install ONE real CRM schema</h2>
+            <p>This creates the 8 business tables, private version tracking and row-level security in the approved Frankfurt test project. This change cannot be automatically undone. No customer data, owner login, Netlify site or CRM application is created.</p>
+            <label class="pilot-approval-consent" for="crm-schema-accept-changes">
+              <input id="crm-schema-accept-changes" type="checkbox" />
+              <span>I approve installing the eight CRM tables and security policies into my new staging Supabase project and understand that the database will be modified.</span>
+            </label>
+            <label class="pilot-confirmation-label" for="crm-schema-confirm-phrase">
+              To approve, type <strong id="crm-schema-confirm-phrase-display">INSTALL CRM SCHEMA V1</strong>
+            </label>
+            <input type="text" id="crm-schema-confirm-phrase" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type the exact phrase" />
+            <button type="submit" id="install-one-crm-schema" class="action-button" disabled>Install ONE CRM schema</button>
+          </form>
+          <div id="crm-schema-install-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <div class="export-panel">
             <div><h2>Preview automatic installation</h2><p>See the proposed steps for this company using your securely connected accounts. This is a read-only preview: it cannot create projects or sites, deploy code, or approve charges.</p></div>
             <button type="button" id="preview-installation-plan" class="action-button" disabled>Preview installation</button>
           </div>

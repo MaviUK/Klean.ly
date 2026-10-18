@@ -16,6 +16,9 @@ let pilotProposalPending = false;
 let pilotCreationPending = false;
 let crmDatabaseReviewPending = false;
 let crmSchemaProposalPending = false;
+let crmSchemaApprovalPending = false;
+let crmSchemaInstallPending = false;
+let crmSchemaInstallProposal = null;
 let pilotProposal = null;
 
 function byId(id) { return document.getElementById(id); }
@@ -227,6 +230,7 @@ function renderProviders() {
   byId("review-test-project").disabled = pilotProposalPending || pilotCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-database").disabled = crmDatabaseReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-schema").disabled = crmSchemaProposalPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-installation").disabled = crmSchemaApprovalPending || crmSchemaInstallPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -301,6 +305,10 @@ byId("check-free-project-capacity").addEventListener("click", checkFreeProjectCa
 byId("review-test-project").addEventListener("click", reviewTestProject);
 byId("review-crm-database").addEventListener("click", reviewCrmDatabase);
 byId("review-crm-schema").addEventListener("click", reviewCrmSchema);
+byId("review-crm-installation").addEventListener("click", reviewCrmSchemaInstallation);
+byId("crm-schema-confirm-phrase").addEventListener("input", updateCrmSchemaInstallState);
+byId("crm-schema-accept-changes").addEventListener("change", updateCrmSchemaInstallState);
+byId("crm-schema-install-approval").addEventListener("submit", installOneCrmSchema);
 byId("pilot-confirm-phrase").addEventListener("input", updatePilotApprovalState);
 byId("pilot-accept-costs").addEventListener("change", updatePilotApprovalState);
 byId("test-project-approval").addEventListener("submit", createOneTestProject);
@@ -739,6 +747,146 @@ async function reviewCrmSchema() {
       " No database changes were made.");
   } finally {
     crmSchemaProposalPending = false;
+    renderProviders();
+  }
+}
+
+function updateCrmSchemaInstallState() {
+  const canInstall = crmSchemaInstallProposal?.installationUnlocked === true &&
+    !crmSchemaInstallProposal.existingAttempt &&
+    !crmSchemaInstallPending &&
+    byId("crm-schema-accept-changes").checked &&
+    byId("crm-schema-confirm-phrase").value === crmSchemaInstallProposal.confirmationPhrase;
+  byId("install-one-crm-schema").disabled = !canInstall;
+}
+
+function clearCrmSchemaInstallProposal() {
+  crmSchemaInstallProposal = null;
+  byId("crm-schema-install-approval").hidden = true;
+  byId("crm-schema-accept-changes").checked = false;
+  byId("crm-schema-confirm-phrase").value = "";
+  updateCrmSchemaInstallState();
+}
+
+async function reviewCrmSchemaInstallation() {
+  if (crmSchemaApprovalPending || crmSchemaInstallPending ||
+      !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken) return;
+  crmSchemaApprovalPending = true;
+  clearCrmSchemaInstallProposal();
+  renderProviders();
+  const output = byId("crm-schema-install-proposal-result");
+  output.classList.remove("is-warning");
+  output.classList.remove("is-error");
+  output.textContent = "Rechecking the verified staging project and one-time install lock...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-schema-approval", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "CRM installation approval is unavailable.");
+    if (data.mode !== "staging_crm_schema_pilot" ||
+        typeof data.projectName !== "string" ||
+        typeof data.projectRef !== "string" ||
+        data.writeAttempted !== false ||
+        typeof data.installationUnlocked !== "boolean") {
+      throw new Error("Unexpected CRM installation approval status.");
+    }
+    const heading = "Project: " + data.projectName + " (" + data.projectRef + "). ";
+    if (data.existingAttempt) {
+      output.classList.add("is-warning");
+      output.textContent = heading +
+        "An earlier CRM schema installation attempt already exists (status: " +
+        data.existingAttempt.status + "). No second request is allowed. " +
+        (data.schemaInstalled
+          ? "The staging installer recorded a successful schema installation."
+          : "Check Supabase before making any changes.");
+    } else if (!data.installationUnlocked) {
+      output.classList.add("is-warning");
+      output.textContent = heading +
+        "The test database is eligible for installation. REAL CRM SCHEMA INSTALLATION " +
+        "IS LOCKED pending your separate approval to enable this staging-only feature. " +
+        "Review only — no tables were created.";
+    } else {
+      if (data.installationLocked !== false ||
+          data.needsSeparateConfirmation !== true ||
+          data.blueprintVersion !== 1 ||
+          data.confirmationPhrase !== "INSTALL CRM SCHEMA V1") {
+        throw new Error("Unexpected final CRM confirmation settings.");
+      }
+      crmSchemaInstallProposal = data;
+      output.textContent = heading +
+        "CRM schema pilot unlocked. To install eight real tables and row security, " +
+        "acknowledge the database changes and enter the confirmation phrase below.";
+      byId("crm-schema-confirm-phrase-display").textContent = data.confirmationPhrase;
+      byId("crm-schema-install-approval").hidden = false;
+    }
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Unable to review CRM installation.") +
+      " No database changes were made.";
+  } finally {
+    crmSchemaApprovalPending = false;
+    updateCrmSchemaInstallState();
+    renderProviders();
+  }
+}
+
+async function installOneCrmSchema(event) {
+  event.preventDefault();
+  if (crmSchemaInstallPending ||
+      crmSchemaInstallProposal?.installationUnlocked !== true ||
+      crmSchemaInstallProposal.existingAttempt ||
+      !byId("crm-schema-accept-changes").checked ||
+      byId("crm-schema-confirm-phrase").value !== crmSchemaInstallProposal.confirmationPhrase ||
+      !oauthState.csrfToken) return;
+  if (!window.confirm(
+    "FINAL CONFIRMATION: Install the real CRM database schema (8 tables plus " +
+    "row-level security) into " + crmSchemaInstallProposal.projectName +
+    "? This permanently changes your test Supabase project. " +
+    "No owner account or website will be created."
+  )) return;
+
+  crmSchemaInstallPending = true;
+  updateCrmSchemaInstallState();
+  renderProviders();
+  const output = byId("crm-schema-install-result");
+  output.classList.remove("is-error");
+  output.textContent = "Sending the ONE approved schema-install request. Do not retry or refresh...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-schema-install", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": oauthState.csrfToken,
+      },
+      body: JSON.stringify({
+        confirmation: crmSchemaInstallProposal.confirmationPhrase,
+        acknowledgeSchemaChanges: true,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error((data.error || "Schema installation could not be confirmed.") +
+        " Do NOT retry without verifying the database.");
+    }
+    if (data.state !== "crm_schema_applied" ||
+        data.schemaInstalled !== true ||
+        data.rowLevelSecurityVerified !== true ||
+        data.publicTableCount !== 8 ||
+        data.projectRef !== crmSchemaInstallProposal.projectRef) {
+      throw new Error("The server could not confirm schema security. Do NOT retry.");
+    }
+    output.textContent = "CRM schema v1 installed and verified: " +
+      data.publicTableCount + " tables with row-level security in " +
+      data.projectName + ". No owner account, website or CRM app was created.";
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "CRM schema status unknown.") +
+      " Do not send another request.";
+  } finally {
+    crmSchemaInstallPending = false;
+    clearCrmSchemaInstallProposal();
     renderProviders();
   }
 }
