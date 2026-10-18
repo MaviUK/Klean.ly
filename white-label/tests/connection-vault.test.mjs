@@ -141,6 +141,11 @@ test("persistAuthorization encrypts per-org credentials and issues a revocable o
   const encrypted = q.params[5];
   assert(!encrypted.includes(tokens.accessToken) && !encrypted.includes(tokens.refreshToken));
   assert.deepEqual(decryptTokens(encrypted, tokenBinding(q.params[0],user.userId,org.organizationId), key), tokens);
+  const oldSessionDeletion = fake.queries.find(q =>
+    q.sql.includes("DELETE FROM portal_sessions WHERE connection_id = $1 AND user_id = $2")
+  );
+  assert(oldSessionDeletion, "reconnecting must revoke older sessions for this org");
+  assert.equal(oldSessionDeletion.params[1], user.userId);
   const sq = fake.queries.find(x=>x.sql.includes("INSERT INTO portal_sessions"));
   assert.match(sq.params[0], /^[a-f0-9]{64}$/);
   assert.notEqual(sq.params[0], session.cookieValue);
