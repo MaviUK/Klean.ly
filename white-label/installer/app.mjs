@@ -2,6 +2,7 @@ import { providers, sanitiseSetup, requiredProviderIds } from "./catalog.mjs";
 
 const STORAGE_KEY = "kleanly_business_setup_draft_v1";
 const STEP_COUNT = 4;
+// Netlify OAuth is provided by the separate infrastructure module.
 let step = 0;
 let draft = { name: "", domain: "", logoUrl: "", primaryColor: "#059669", desiredProviders: [...requiredProviderIds] };
 let oauthState = { configured: false, verified: false, connected: false,
