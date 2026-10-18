@@ -19,6 +19,7 @@ let crmSchemaProposalPending = false;
 let crmSchemaApprovalPending = false;
 let crmSchemaInstallPending = false;
 let ownerReadinessPending = false;
+let crmSiteProposalPending = false;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
 
@@ -233,6 +234,7 @@ function renderProviders() {
   byId("review-crm-schema").disabled = crmSchemaProposalPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-installation").disabled = crmSchemaApprovalPending || crmSchemaInstallPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("check-owner-readiness").disabled = ownerReadinessPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-site").disabled = crmSiteProposalPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -309,6 +311,7 @@ byId("review-crm-database").addEventListener("click", reviewCrmDatabase);
 byId("review-crm-schema").addEventListener("click", reviewCrmSchema);
 byId("review-crm-installation").addEventListener("click", reviewCrmSchemaInstallation);
 byId("check-owner-readiness").addEventListener("click", checkOwnerLoginReadiness);
+byId("review-crm-site").addEventListener("click", reviewCrmSiteProposal);
 byId("crm-schema-confirm-phrase").addEventListener("input", updateCrmSchemaInstallState);
 byId("crm-schema-accept-changes").addEventListener("change", updateCrmSchemaInstallState);
 byId("crm-schema-install-approval").addEventListener("submit", installOneCrmSchema);
@@ -949,6 +952,72 @@ async function checkOwnerLoginReadiness() {
       " No invitation was sent.";
   } finally {
     ownerReadinessPending = false;
+    renderProviders();
+  }
+}
+
+async function reviewCrmSiteProposal() {
+  if (crmSiteProposalPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  crmSiteProposalPending = true;
+  renderProviders();
+  const output = byId("crm-site-proposal-result");
+  output.classList.remove("is-error");
+  output.classList.remove("is-warning");
+  output.textContent = "Checking your separately connected test Netlify account (read-only)...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-site-proposal", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "CRM site readiness could not be checked.");
+    if (data.mode !== "read_only_crm_site_proposal" ||
+        data.proposedSiteName !== "kleanly-business-crm-pilot" ||
+        data.proposedSiteUrl !== "https://kleanly-business-crm-pilot.netlify.app" ||
+        typeof data.connectedNetlifyEmail !== "string" ||
+        data.ownerEmail !== "kleanlytest@gerball.co.uk" ||
+        !Array.isArray(data.testNetlifyTeams) ||
+        data.testNetlifyTeams.length < 1 ||
+        typeof data.matchingSitesInConnectedAccount !== "number" ||
+        data.siteCreated !== false ||
+        data.deploymentCreated !== false ||
+        data.invitationSent !== false ||
+        data.readyToCreateSite !== false ||
+        data.providerBillingApproved !== false ||
+        data.globalNameAvailabilityConfirmed !== false ||
+        data.writeAttempted !== false) {
+      throw new Error("Unexpected test website proposal.");
+    }
+    const teams = data.testNetlifyTeams.map((t) => {
+      if (!t || typeof t.name !== "string" || typeof t.slug !== "string" ||
+          typeof t.plan !== "string") {
+        throw new Error("Unexpected test Netlify team details.");
+      }
+      return t.name + " (" + t.slug + "), plan: " + t.plan;
+    }).join("; ");
+    const heading = "Proposed CRM: " + data.proposedSiteUrl +
+      ". Owner login: " + data.ownerEmail + ". " +
+      "Connected Netlify account: " + data.connectedNetlifyEmail + ". " +
+      "Available teams in that account: " + teams + ". ";
+    if (data.existingSiteReviewRequired === true) {
+      output.classList.add("is-warning");
+      output.textContent = heading +
+        "A matching website is already visible to this connected account. " +
+        "We must inspect it before attempting site creation. No changes were made.";
+    } else {
+      output.textContent = heading +
+        "No matching website was found among the sites visible to this account. " +
+        "Global name availability is not yet guaranteed. " +
+        "Next we will confirm which team owns the new site and check provider billing before enabling creation. " +
+        "No website or owner invitation was created.";
+    }
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "CRM website review unavailable.") +
+      " No website was created.";
+  } finally {
+    crmSiteProposalPending = false;
     renderProviders();
   }
 }
