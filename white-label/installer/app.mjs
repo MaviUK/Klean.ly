@@ -15,6 +15,7 @@ let freeCapacityPending = false;
 let pilotProposalPending = false;
 let pilotCreationPending = false;
 let crmDatabaseReviewPending = false;
+let crmSchemaProposalPending = false;
 let pilotProposal = null;
 
 function byId(id) { return document.getElementById(id); }
@@ -225,6 +226,7 @@ function renderProviders() {
   byId("check-free-project-capacity").disabled = freeCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-test-project").disabled = pilotProposalPending || pilotCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-database").disabled = crmDatabaseReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-schema").disabled = crmSchemaProposalPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -298,6 +300,7 @@ byId("preview-installation-plan").addEventListener("click", previewInstallation)
 byId("check-free-project-capacity").addEventListener("click", checkFreeProjectCapacity);
 byId("review-test-project").addEventListener("click", reviewTestProject);
 byId("review-crm-database").addEventListener("click", reviewCrmDatabase);
+byId("review-crm-schema").addEventListener("click", reviewCrmSchema);
 byId("pilot-confirm-phrase").addEventListener("input", updatePilotApprovalState);
 byId("pilot-accept-costs").addEventListener("change", updatePilotApprovalState);
 byId("test-project-approval").addEventListener("submit", createOneTestProject);
@@ -669,6 +672,73 @@ async function reviewCrmDatabase() {
       " No schema installation was requested.";
   } finally {
     crmDatabaseReviewPending = false;
+    renderProviders();
+  }
+}
+
+async function reviewCrmSchema() {
+  if (crmSchemaProposalPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  crmSchemaProposalPending = true;
+  renderProviders();
+  const output = byId("crm-schema-proposal-result");
+  output.hidden = false;
+  output.classList.remove("is-error");
+  output.replaceChildren();
+  appendInstallationParagraph(output, "Preparing the read-only CRM schema proposal...");
+  try {
+    const response = await fetch("/.netlify/functions/crm-schema-proposal", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "The CRM schema cannot be reviewed yet.");
+    if (data.mode !== "read_only_crm_schema_proposal" ||
+        data.blueprintVersion !== 1 ||
+        data.readyForOwnerApproval !== true ||
+        data.separateOwnerConfirmationRequired !== true ||
+        data.schemaInstallEnabled !== false ||
+        data.schemaApplied !== false ||
+        data.writeAttempted !== false ||
+        data.rowLevelSecurityIncluded !== true ||
+        !Array.isArray(data.publicTables) ||
+        data.publicTables.length !== 8 ||
+        typeof data.projectName !== "string" ||
+        typeof data.projectRef !== "string") {
+      throw new Error("The installer returned an unexpected schema proposal.");
+    }
+    output.replaceChildren();
+    const heading = document.createElement("h3");
+    heading.textContent = "CRM database blueprint v" + data.blueprintVersion;
+    output.append(heading);
+    appendInstallationParagraph(output, "Verified project: " + data.projectName +
+      " (" + data.projectRef + "). Region: " + data.region + ".");
+    appendInstallationParagraph(output, "The following " + data.publicTables.length +
+      " business tables will be created after a separate confirmation:");
+    const items = document.createElement("ol");
+    for (const table of data.publicTables) {
+      if (typeof table.name !== "string" || typeof table.purpose !== "string") {
+        throw new Error("Unexpected schema table description.");
+      }
+      const item = document.createElement("li");
+      item.textContent = table.name + " — " + table.purpose;
+      items.append(item);
+    }
+    output.append(items);
+    appendInstallationParagraph(output,
+      "Also included: a private schema version record and row-level security. " +
+      "No customer details are copied; no owner account, website, or CRM app is installed at this stage.");
+    appendInstallationParagraph(output,
+      "REVIEW ONLY — schema installation is not yet enabled. " +
+      "We'll add a separate, protected confirmation before any database changes.",
+      "installation-warning");
+  } catch (error) {
+    output.classList.add("is-error");
+    output.replaceChildren();
+    appendInstallationParagraph(output, (error?.message || "Cannot review CRM schema.") +
+      " No database changes were made.");
+  } finally {
+    crmSchemaProposalPending = false;
     renderProviders();
   }
 }
