@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Encryption key generator — Klean.ly Business staging</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">K<span>.</span></div><div><strong>Klean.ly</strong><small>BUSINESS SETUP</small></div></div>
+      <div class="sidebar-label">PRIVATE SETUP TOOL</div>
+      <p style="padding:0 24px;color:#cbd5e1;line-height:1.65">This page creates a 256-bit AES key directly in your browser. Nothing is uploaded or saved by this tool.</p>
+    </aside>
+    <main class="workspace">
+      <header class="topbar"><div><span class="eyebrow">KLEAN.LY / WHITE-LABEL</span><p class="topbar-title">Encryption key generator</p></div></header>
+      <div class="content">
+        <div class="section-heading">
+          <span class="overline">PRIVATE CONFIGURATION</span>
+          <h1>Generate a secure key.</h1>
+          <p>Only use this to set up the Klean.ly Business control-plane encryption key, not a Supabase service-role key or database password.</p>
+        </div>
+        <div class="form-card">
+          <div class="notice">
+            <strong>Generated on this device only</strong>
+            <p>The key is created using your browser's built-in cryptographic random-number generator. This page never sends it to Klean.ly, Netlify or anyone else.</p>
+          </div>
+          <button class="action-button" type="button" id="generate-key">Generate 256-bit key</button>
+          <div id="generated-section" hidden>
+            <label for="generated-key">Encryption key (Base64URL)</label>
+            <input id="generated-key" type="text" readonly autocomplete="off" spellcheck="false" />
+            <button type="button" class="action-button" id="copy-key">Copy key</button>
+            <p id="key-status" role="status" aria-live="polite"></p>
+          </div>
+          <p class="form-caption">
+            Paste the key as the Value for <code>KLEANLY_OAUTH_ENCRYPTION_KEY</code> in Netlify.
+            Mark it as secret and allow Functions scope only. Keep a secure backup in your password manager:
+            losing the key will make existing encrypted connections unreadable. Do not share screenshots of the generated value.
+          </p>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="./generate-key.mjs"></script>
+</body>
+</html>
