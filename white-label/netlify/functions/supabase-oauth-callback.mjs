@@ -23,10 +23,22 @@ function lookupFailure(stage, error) {
   return stage + "_unavailable";
 }
 
+// This is the *only* implementation that can write to the portal database.
+// The callback factory below accepts a different persistence function in unit
+// tests, so even a Netlify build with a live DB URL cannot write test records.
+async function persistVerifiedGrant(details) {
+  const { persistAuthorization, portalSessionCookie } =
+    await import("./_lib/connection-store.mjs");
+  const portalSession = await persistAuthorization(details, undefined, vaultKey());
+  return portalSessionCookie(portalSession);
+}
+
 // Callback is feature-gated: until the private portal DB and vault key are
 // configured it preserves the existing, successful verification-only pilot.
 // Permanent mode never sets the old 15-minute test verification cookie.
-export default async function handler(request) {
+// Dependency injection is code-only; callers cannot select it using an HTTP request.
+export function createOAuthCallback({ persistGrant = persistVerifiedGrant } = {}) {
+  return async function handler(request) {
   if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
   const params = new URL(request.url).searchParams;
   const cleanup = [clearCookie(FLOW_COOKIE), clearCookie(VERIFIED_COOKIE)];
@@ -114,14 +126,8 @@ export default async function handler(request) {
     }
 
     try {
-      const { persistAuthorization, portalSessionCookie } =
-        await import("./_lib/connection-store.mjs");
-      const portalSession = await persistAuthorization(
-        { profile, organization, tokens }, undefined, vaultKey()
-      );
-      return redirectToWizard("connected", [
-        ...cleanup, portalSessionCookie(portalSession),
-      ]);
+      const sessionCookie = await persistGrant({ profile, organization, tokens });
+      return redirectToWizard("connected", [...cleanup, sessionCookie]);
     } catch {
       // No partial "connected" success on database or encryption failures.
       // No credential values, OAuth codes or response bodies are logged.
@@ -130,7 +136,11 @@ export default async function handler(request) {
   } catch {
     return redirectToWizard("exchange_failed", cleanup);
   }
+  };
 }
+
+// The Netlify Function always uses the real, server-side implementation.
+export default createOAuthCallback();
 
 export const config = {
   rateLimit: { action: "rate_limit", aggregateBy: "ip", windowSize: 60, windowLimit: 30 },
