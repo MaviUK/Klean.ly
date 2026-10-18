@@ -10,6 +10,7 @@ let oauthState = { configured: false, verified: false, connected: false,
   csrfToken: null };
 let netlifyState = { configured: false, authenticated: false, connected: false, identity: null, connection: null };
 let preflightInProgress = false;
+let installationPreviewPending = false;
 
 function byId(id) { return document.getElementById(id); }
 function setText(id, value) { byId(id).textContent = value; }
@@ -214,6 +215,7 @@ function renderProviders() {
   infra.replaceChildren(...providers.filter((p) => p.category === "Infrastructure").map((p) => renderProvider(p, true)));
   integrations.replaceChildren(...providers.filter((p) => p.category !== "Infrastructure").map((p) => renderProvider(p, p.required)));
   byId("check-provisioning-readiness").disabled = preflightInProgress || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("preview-installation-plan").disabled = installationPreviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
