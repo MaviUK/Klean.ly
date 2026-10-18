@@ -104,13 +104,18 @@ export function validateOrganizationResponse(data) {
   return { organizationId: id, organizationName: name, organizationSlug: slug };
 }
 
+export class SupabaseGrantRejected extends Error {
+  constructor() { super("Supabase authorization was revoked or denied"); this.name = "SupabaseGrantRejected"; }
+}
+
 export async function providerJson(path, accessToken, fetchFn = fetch) {
   if (!["/profile", "/organizations"].includes(path)) throw new Error("Invalid management path");
   const response = await fetchFn(MANAGEMENT_BASE + path, {
     headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
     signal: AbortSignal.timeout(15000),
   });
-  if (!response.ok) throw new Error("Supabase refused account verification");
+  if ([401, 403].includes(response.status)) throw new SupabaseGrantRejected();
+  if (!response.ok) throw new Error("Supabase temporarily could not verify the account");
   const json = await response.json();
   return path === "/profile" ? validateProfile(json) : validateOrganizationResponse(json);
 }

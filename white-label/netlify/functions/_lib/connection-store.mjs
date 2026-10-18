@@ -1,6 +1,6 @@
 import {
   decryptTokens, encryptTokens, newPortalSession, sessionHash, tokenBinding,
-  vaultKey, newConnectionId, SESSION_COOKIE, SESSION_SECONDS,
+  vaultKey, newConnectionId, SESSION_COOKIE, SESSION_SECONDS, SupabaseGrantRejected,
 } from "./connection-vault.mjs";
 import { readCookie, cookieHeader, clearCookie } from "./supabase-oauth.mjs";
 
@@ -210,7 +210,16 @@ export async function inspectConnectedGrant(
     let organization;
     try {
       organization = await providerJson("/organizations", credentials.accessToken, fetchFn);
-    } catch {
+    } catch (error) {
+      if (error instanceof SupabaseGrantRejected) {
+        await connection.query(
+          `UPDATE portal_connections
+           SET status = 'reauthorisation_required', health_checked_at = now(), updated_at = now()
+           WHERE connection_id = $1`, [row.connection_id]
+        );
+        await connection.query("COMMIT");
+        return { state: "reauthorisation_required", cached: false };
+      }
       // A rotated refresh token has already been UPDATEd in this transaction.
       // Commit it before reporting a transient verification problem, otherwise
       // a consumed refresh token could be lost forever on ROLLBACK.
