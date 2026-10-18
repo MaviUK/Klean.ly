@@ -481,4 +481,35 @@ async function performNetlifyConnectionAction(action) {
   }
   renderProviders();
 }
+async function checkProvisioningReadiness() {
+  if (preflightInProgress || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken) return;
+  preflightInProgress = true;
+  renderProviders();
+  const output = byId("provisioning-readiness-result");
+  output.classList.remove("is-error");
+  output.textContent = "Checking your linked accounts and Supabase projects. This creates nothing...";
+  try {
+    const response = await fetch("/.netlify/functions/provisioning-preflight", {
+      method: "POST", cache: "no-store", credentials: "same-origin",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Cannot verify installation prerequisites right now.");
+    const count = data.mayHaveMoreProjects
+      ? "at least " + data.observedProjectCount
+      : String(data.observedProjectCount);
+    output.textContent = "Read-only checks passed: Supabase organisation " +
+      data.organizationName + " has " + count + " project(s), and your Netlify grant is valid. " +
+      "No site or database was created. Available free project quota and any costs have not been confirmed. " +
+      "Automated installation remains disabled until billing is checked and explicitly approved.";
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Readiness check unavailable.") +
+      " No project or website was created.";
+  } finally {
+    preflightInProgress = false;
+    renderProviders();
+  }
+}
+
 refreshSupabaseOAuthStatus().then(refreshNetlifyOAuthStatus);
