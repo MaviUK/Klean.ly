@@ -14,6 +14,7 @@ let installationPreviewPending = false;
 let freeCapacityPending = false;
 let pilotProposalPending = false;
 let pilotCreationPending = false;
+let crmDatabaseReviewPending = false;
 let pilotProposal = null;
 
 function byId(id) { return document.getElementById(id); }
@@ -223,6 +224,7 @@ function renderProviders() {
   byId("preview-installation-plan").disabled = installationPreviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("check-free-project-capacity").disabled = freeCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-test-project").disabled = pilotProposalPending || pilotCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-database").disabled = crmDatabaseReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -295,6 +297,7 @@ byId("check-provisioning-readiness").addEventListener("click", checkProvisioning
 byId("preview-installation-plan").addEventListener("click", previewInstallation);
 byId("check-free-project-capacity").addEventListener("click", checkFreeProjectCapacity);
 byId("review-test-project").addEventListener("click", reviewTestProject);
+byId("review-crm-database").addEventListener("click", reviewCrmDatabase);
 byId("pilot-confirm-phrase").addEventListener("input", updatePilotApprovalState);
 byId("pilot-accept-costs").addEventListener("change", updatePilotApprovalState);
 byId("test-project-approval").addEventListener("submit", createOneTestProject);
@@ -608,6 +611,66 @@ function renderInstallationPreview(plan) {
     "billing safeguards, customer system packaging, and explicit approval are implemented.",
     "installation-warning"
   );
+}
+
+async function reviewCrmDatabase() {
+  if (crmDatabaseReviewPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  crmDatabaseReviewPending = true;
+  renderProviders();
+  const output = byId("crm-database-review-result");
+  output.classList.remove("is-error");
+  output.classList.remove("is-warning");
+  output.textContent = "Checking the approved test project and CRM tables (read-only)...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-database-review", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "CRM database check unavailable.");
+    if (data.mode !== "read_only_staging_crm_review" ||
+        data.writeAttempted !== false || data.installationEnabled !== false ||
+        data.schemaInstalled !== false || data.projectVerified !== true ||
+        typeof data.projectName !== "string" || typeof data.projectRef !== "string") {
+      throw new Error("The server returned an unexpected database review.");
+    }
+    const details = data.projectName + " (" + data.projectRef + "). " +
+      "Region: " + (data.region || "not yet confirmed") + ". ";
+    if (data.state === "schema_ready_for_approval" &&
+        data.schemaVerified === true && data.readyForSeparateApproval === true) {
+      output.textContent = "Project verified: " + details +
+        "No Klean.ly directory or CRM tables detected. Database is ready for " +
+        "a separately approved schema-install step. No changes were made.";
+    } else if (data.state === "database_permission_required") {
+      output.classList.add("is-warning");
+      output.textContent = "Project verified: " + details +
+        "The current Supabase OAuth grant cannot inspect database tables. " +
+        "Database access permission must be approved before installing the CRM. " +
+        "No changes were made.";
+    } else if (data.state === "directory_tables_blocked") {
+      output.classList.add("is-error");
+      output.textContent = "Installation BLOCKED. Project: " + details +
+        "Klean.ly directory tables were detected. Do not install the CRM here.";
+    } else if (data.state === "existing_schema_needs_review") {
+      output.classList.add("is-warning");
+      output.textContent = "Project verified: " + details +
+        "Existing CRM schema objects were detected (" + data.existingCrmTables +
+        "). The schema must be reviewed before any installation or retry.";
+    } else {
+      output.classList.add("is-warning");
+      output.textContent = "Project verified: " + details +
+        (data.note || "Database readiness has not been confirmed.") +
+        " No changes were made.";
+    }
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Unable to inspect the CRM database.") +
+      " No schema installation was requested.";
+  } finally {
+    crmDatabaseReviewPending = false;
+    renderProviders();
+  }
 }
 
 async function previewInstallation() {
