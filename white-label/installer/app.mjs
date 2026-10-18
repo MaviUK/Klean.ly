@@ -24,6 +24,7 @@ let crmSiteCapacityPending = false;
 let crmSiteApprovalPending = false;
 let crmSiteCreationPending = false;
 let crmDeploymentReviewPending = false;
+let ownerAuthReviewPending = false;
 let crmSiteApproval = null;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
@@ -243,6 +244,7 @@ function renderProviders() {
   byId("review-crm-capacity").disabled = crmSiteCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-site-create").disabled = crmSiteApprovalPending || crmSiteCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-deployment").disabled = crmDeploymentReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-owner-auth-setup").disabled = ownerAuthReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -323,6 +325,7 @@ byId("review-crm-site").addEventListener("click", reviewCrmSiteProposal);
 byId("review-crm-capacity").addEventListener("click", reviewCrmSiteCapacity);
 byId("review-crm-site-create").addEventListener("click", reviewCrmSiteCreation);
 byId("review-crm-deployment").addEventListener("click", reviewCrmDeploymentReadiness);
+byId("review-owner-auth-setup").addEventListener("click", reviewOwnerAuthSetup);
 byId("crm-site-confirm-phrase").addEventListener("input", updateCrmSiteCreationState);
 byId("crm-site-accept-credits").addEventListener("change", updateCrmSiteCreationState);
 byId("crm-site-accept-one").addEventListener("change", updateCrmSiteCreationState);
@@ -1300,6 +1303,83 @@ async function reviewCrmDeploymentReadiness() {
       " No deployment was attempted.";
   } finally {
     crmDeploymentReviewPending = false;
+    renderProviders();
+  }
+}
+
+async function reviewOwnerAuthSetup() {
+  if (ownerAuthReviewPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  ownerAuthReviewPending = true;
+  renderProviders();
+  const output = byId("owner-auth-setup-result");
+  output.classList.remove("is-error");
+  output.classList.remove("is-warning");
+  output.textContent = "Checking the test owner's Supabase Auth settings and CRM hosting records (read-only)...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-owner-auth-review", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Owner login configuration could not be checked.");
+    if (data.mode !== "read_only_crm_owner_auth_setup" ||
+        data.projectVerified !== true ||
+        data.websiteVerified !== true ||
+        data.ownerEmail !== "kleanlytest@gerball.co.uk" ||
+        data.proposedLoginUrl !== "https://kleanly-business-crm-pilot.netlify.app" ||
+        data.requiredCallbackUrl !==
+          "https://kleanly-business-crm-pilot.netlify.app/auth/callback" ||
+        data.invitationEnabled !== false ||
+        data.ownerCreated !== false || data.emailSent !== false ||
+        data.databaseModified !== false || data.websiteModified !== false ||
+        data.writeAttempted !== false) {
+      throw new Error("Unexpected Supabase owner login configuration response.");
+    }
+    const heading = "Proposed test business owner: " + data.ownerEmail +
+      ". Dedicated CRM login: " + data.proposedLoginUrl +
+      ". Required callback: " + data.requiredCallbackUrl + ". ";
+    if (data.state === "auth_read_permission_required" &&
+        data.authSettingsRead === false) {
+      output.classList.add("is-warning");
+      output.textContent = heading +
+        "The connected Supabase OAuth grant does not have permission to read Auth settings. " +
+        "A separate auth:read permission review is needed before proceeding. " +
+        "No settings were changed and no email was sent.";
+    } else if ((data.state === "auth_url_configuration_needed" ||
+        data.state === "auth_settings_checked_waiting_for_crm_deploy") &&
+        data.authSettingsRead === true &&
+        typeof data.siteUrlCorrect === "boolean" &&
+        typeof data.callbackAllowlisted === "boolean" &&
+        typeof data.emailProviderEnabled === "boolean" &&
+        typeof data.publicSignupsDisabled === "boolean" &&
+        data.crmAppDeployed === false) {
+      const summary = "Auth Site URL: " +
+        (data.siteUrlCorrect ? "matches" : "needs configuration") +
+        ". Exact callback allowlist: " +
+        (data.callbackAllowlisted ? "configured" : "needs configuration") +
+        ". Email sign-in: " +
+        (data.emailProviderEnabled ? "enabled" : "not enabled") +
+        ". Public sign-ups: " +
+        (data.publicSignupsDisabled ? "disabled" : "not disabled") + ". ";
+      if (data.state === "auth_url_configuration_needed") output.classList.add("is-warning");
+      output.textContent = heading + summary +
+        "The CRM app and login callback are NOT deployed. No invitation can be sent yet. " +
+        "We'll separately approve any future configuration and invitation.";
+    } else if (data.state === "existing_owner_review_required" ||
+               data.state === "website_needs_review") {
+      output.classList.add("is-warning");
+      output.textContent = heading + (data.note || "Manual review required.") +
+        " No invitation was sent.";
+    } else {
+      throw new Error("Owner login review needs additional verification.");
+    }
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Owner login review unavailable.") +
+      " No invitation was sent.";
+  } finally {
+    ownerAuthReviewPending = false;
     renderProviders();
   }
 }

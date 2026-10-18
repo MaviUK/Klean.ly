@@ -187,6 +187,11 @@
           </div>
           <div id="crm-deployment-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div class="export-panel">
+            <div><h2>Prepare secure owner login</h2><p>Review the selected test business owner email, dedicated CRM login URL and Supabase Auth redirect settings. This checks configuration only: no invitation will be sent, no account created and no database or website changed.</p></div>
+            <button type="button" id="review-owner-auth-setup" class="action-button" disabled>Review owner login setup</button>
+          </div>
+          <div id="owner-auth-setup-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <div class="export-panel">
             <div><h2>Explore the CRM interface</h2><p>View the new mobile-ready CRM design for customers, cleaning rounds, jobs, payments, messages and team settings. This is a STATIC interface preview only: no owner login, database connection or real customer data is included. It is NOT deployed to your test CRM website.</p></div>
             <a class="action-button crm-preview-link" href="/crm-preview/">View CRM interface preview →</a>
           </div>
