@@ -18,6 +18,7 @@ let crmDatabaseReviewPending = false;
 let crmSchemaProposalPending = false;
 let crmSchemaApprovalPending = false;
 let crmSchemaInstallPending = false;
+let ownerReadinessPending = false;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
 
@@ -231,6 +232,7 @@ function renderProviders() {
   byId("review-crm-database").disabled = crmDatabaseReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-schema").disabled = crmSchemaProposalPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-installation").disabled = crmSchemaApprovalPending || crmSchemaInstallPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("check-owner-readiness").disabled = ownerReadinessPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -306,6 +308,7 @@ byId("review-test-project").addEventListener("click", reviewTestProject);
 byId("review-crm-database").addEventListener("click", reviewCrmDatabase);
 byId("review-crm-schema").addEventListener("click", reviewCrmSchema);
 byId("review-crm-installation").addEventListener("click", reviewCrmSchemaInstallation);
+byId("check-owner-readiness").addEventListener("click", checkOwnerLoginReadiness);
 byId("crm-schema-confirm-phrase").addEventListener("input", updateCrmSchemaInstallState);
 byId("crm-schema-accept-changes").addEventListener("change", updateCrmSchemaInstallState);
 byId("crm-schema-install-approval").addEventListener("submit", installOneCrmSchema);
@@ -887,6 +890,65 @@ async function installOneCrmSchema(event) {
   } finally {
     crmSchemaInstallPending = false;
     clearCrmSchemaInstallProposal();
+    renderProviders();
+  }
+}
+
+async function checkOwnerLoginReadiness() {
+  if (ownerReadinessPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  ownerReadinessPending = true;
+  renderProviders();
+  const output = byId("owner-readiness-result");
+  output.classList.remove("is-error");
+  output.classList.remove("is-warning");
+  output.textContent = "Verifying the dedicated CRM owner records and security (read-only)...";
+  try {
+    const response = await fetch("/.netlify/functions/owner-login-readiness", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Owner readiness is unavailable.");
+    if (data.mode !== "staging_owner_login_readiness" ||
+        data.projectVerified !== true ||
+        data.ownerInvitationEnabled !== false || data.ownerCreated !== false ||
+        data.emailSent !== false || data.writeAttempted !== false ||
+        typeof data.projectName !== "string") {
+      throw new Error("Unexpected owner readiness response.");
+    }
+    const heading = "Project verified: " + data.projectName + ". ";
+    if (data.state === "owner_setup_can_be_prepared" &&
+        data.schemaVerified === true && data.eightTablesConfirmed === true &&
+        data.eightRlsConfirmed === true &&
+        data.readyForInvitationDevelopment === true) {
+      output.textContent = heading +
+        "Eight CRM tables and row-level security verified. " +
+        "No business owner or staff member has been assigned. " +
+        "Next: a secure owner invitation with your chosen email and a " +
+        "dedicated CRM website login URL. No login or email was created.";
+    } else if (data.state === "owner_already_present") {
+      output.classList.add("is-warning");
+      output.textContent = heading +
+        "An existing owner or staff record was detected. " +
+        "Do not create a second first-owner account. No changes were made.";
+    } else if (data.state === "schema_security_review_required") {
+      output.classList.add("is-error");
+      output.textContent = heading +
+        "Owner setup is blocked until the installed schema security is reviewed. " +
+        "No changes were made.";
+    } else {
+      output.classList.add("is-warning");
+      output.textContent = heading +
+        (data.note || "Owner invitation is not ready.") +
+        " No changes were made.";
+    }
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Owner readiness unavailable.") +
+      " No invitation was sent.";
+  } finally {
+    ownerReadinessPending = false;
     renderProviders();
   }
 }

@@ -144,6 +144,11 @@
           </form>
           <div id="crm-schema-install-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div class="export-panel">
+            <div><h2>Check business owner login readiness</h2><p>Verify the eight protected CRM tables and whether a business owner is already assigned. Read-only: this will not create a login, send email or change your database.</p></div>
+            <button type="button" id="check-owner-readiness" class="action-button" disabled>Check owner login readiness</button>
+          </div>
+          <div id="owner-readiness-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <div class="export-panel">
             <div><h2>Preview automatic installation</h2><p>See the proposed steps for this company using your securely connected accounts. This is a read-only preview: it cannot create projects or sites, deploy code, or approve charges.</p></div>
             <button type="button" id="preview-installation-plan" class="action-button" disabled>Preview installation</button>
           </div>
