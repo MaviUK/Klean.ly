@@ -444,4 +444,37 @@ async function refreshNetlifyOAuthStatus() {
   if (result) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
   renderProviders();
 }
+
+async function performNetlifyConnectionAction(action) {
+  if (!oauthState.connected || !oauthState.csrfToken || !netlifyState.connected) return;
+  if (action === "disconnect" && !window.confirm(
+    "Disconnect Netlify and delete its saved encrypted grant? Supabase will stay connected."
+  )) return;
+  const endpoint = {
+    check: "netlify-connection-check", disconnect: "netlify-connection-disconnect",
+  }[action];
+  if (!endpoint) return;
+  setText("netlify-oauth-result", "Checking the Netlify connection...");
+  try {
+    const response = await fetch("/.netlify/functions/" + endpoint, {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Netlify action failed.");
+    await refreshNetlifyOAuthStatus();
+    if (action === "check") {
+      setText("netlify-oauth-result", data.state === "connected"
+        ? "Netlify is connected and the grant is valid."
+        : data.state === "reauthorisation_required" ? "Netlify needs reauthorisation."
+        : "Netlify could not be verified right now. The saved grant is unchanged.");
+    } else {
+      setText("netlify-oauth-result", "Netlify disconnected. Your Supabase connection was not changed.");
+    }
+  } catch (error) {
+    setText("netlify-oauth-result", error?.message || "Netlify action failed.");
+    byId("netlify-oauth-result").classList.add("is-error");
+  }
+  renderProviders();
+}
 refreshSupabaseOAuthStatus().then(refreshNetlifyOAuthStatus);
