@@ -163,7 +163,7 @@ export async function reservePilotProject(current, {
     "(request_id, user_id, connection_id, organization_id, organization_slug, " +
     "project_name, region_group, encrypted_db_password, status) " +
     "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'reserved') " +
-    "ON CONFLICT (user_id, organization_id) DO NOTHING RETURNING request_id",
+    "ON CONFLICT DO NOTHING RETURNING request_id",
     [requestId, current.user_id, current.connection_id,
       current.organization_id, current.organization_slug, PILOT_PROJECT_NAME,
       PILOT_REGION_GROUP, sealed]
