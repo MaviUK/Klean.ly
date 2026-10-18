@@ -494,7 +494,8 @@ async function checkProvisioningReadiness() {
       headers: { "X-CSRF-Token": oauthState.csrfToken },
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Cannot verify installation prerequisites right now.");
+    if (!response.ok) throw new Error((data.error || "Cannot verify installation prerequisites right now.") +
+      (data.code ? " (Reference: " + data.code + ")" : ""));
     const count = data.mayHaveMoreProjects
       ? "at least " + data.observedProjectCount
       : String(data.observedProjectCount);
