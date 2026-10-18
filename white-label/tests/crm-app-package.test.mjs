@@ -37,7 +37,7 @@ test("CRM preview renders all 8 modules and openly discloses its limitations", (
   assert.match(html, /No owner login, live customer data or database connection yet/);
   assert.match(html, /Interface preview/);
   assert.match(html, /No live data is accessed on this preview/);
-  assert.match(html, /type="button" class="locked-action" disabled/);
+  assert.match(html, /class="locked-action" disabled type="button"/);
   assert.doesNotMatch(html, /<form[\s>]/i);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/i);
   assert.doesNotMatch(html, /https?:\/\/[^"'\s]+\/auth\/v1\//i);
