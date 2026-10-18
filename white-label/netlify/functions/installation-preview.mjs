@@ -38,7 +38,7 @@ export function validateBlueprint(input) {
     throw new InstallationPlanError("Enter a business name before previewing installation.");
   }
   const name = inputName.trim();
-  if (!SAFE_NAME.test(name)) {
+  if (!SAFE_NAME.test(inputName) || !SAFE_NAME.test(name)) {
     throw new InstallationPlanError("Business name must contain 1–160 printable characters.");
   }
 
