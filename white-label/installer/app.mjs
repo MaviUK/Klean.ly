@@ -379,6 +379,7 @@ async function performConnectionAction(action) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "The action could not be completed.");
     await refreshSupabaseOAuthStatus();
+    await refreshNetlifyOAuthStatus();
     if (action === "check") {
       const message = data.state === "connected" ? "Supabase is connected and your grant is valid."
         : data.state === "reauthorisation_required" ? "Supabase needs to be re-authorised."
