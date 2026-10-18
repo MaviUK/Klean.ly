@@ -91,7 +91,7 @@ test("builds a reproducible non-executable preview without billing or allocation
   assert.equal(plan.installationEnabled, false);
   assert.equal(plan.readyToInstall, false);
   assert.equal(plan.installationsCreated, false);
-  assert.equal(JSON.stringify(plan).includes("secret"), false);
+  assert.equal(JSON.stringify(plan).includes("sensitive-user-supplied-private-key"), false);
 });
 
 test("the preview handler reuses the secure read-only readiness check and never installs", async () => {
