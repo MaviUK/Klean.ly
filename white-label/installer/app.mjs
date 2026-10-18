@@ -257,6 +257,14 @@ async function refreshSupabaseOAuthStatus() {
     organisations_forbidden: "Supabase did not permit this OAuth grant to read the organisation list. No credentials were saved (O5).",
     organisations_rate_limited: "Supabase temporarily limited organisation-list requests. No credentials were saved (O6).",
     organisations_unavailable: "Organisation verification could not be completed. No credentials were saved (O7).",
+    members_slug_unavailable: "The selected organisation has no usable membership lookup ID. Nothing was saved (M1).",
+    members_response_invalid: "Supabase returned an unexpected organisation-member response. Nothing was saved (M2).",
+    members_not_single: "This test connector supports only an organisation with exactly one member. Multi-member companies will require independent Klean.ly Business login (M3).",
+    members_identity_invalid: "Supabase membership did not contain a valid account identifier. Nothing was saved (M4).",
+    members_owner_required: "The only organisation member is not confirmed as an Owner. Nothing was saved (M5).",
+    members_forbidden: "Supabase denied permission to verify organisation membership. Check Organisations → Read in your OAuth app (M6).",
+    members_rate_limited: "Supabase temporarily limited organisation-member verification. Nothing was saved (M7).",
+    members_unavailable: "Supabase organisation-member verification was unavailable. Nothing was saved (M8).",
     storage_unavailable: "The secure portal database could not save this grant. Nothing was connected. Please try later.",
   };
   try {
