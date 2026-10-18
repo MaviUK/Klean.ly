@@ -1,0 +1,160 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { environment } from "./supabase-oauth.mjs";
+
+// This separate control plane is deliberately disabled until its DB and
+// encryption key are available. OAuth's existing verification-only path
+// remains active in the meantime.
+export const SESSION_COOKIE = "__Host-kleanly_portal_session";
+export const SESSION_SECONDS = 7 * 24 * 3600;
+export const MANAGEMENT_BASE = "https://api.supabase.com/v1";
+export const ALLOWED_TOKEN_BYTES = 12000;
+
+export function vaultKey(env = environment) {
+  const raw = env("KLEANLY_OAUTH_ENCRYPTION_KEY");
+  if (typeof raw !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(raw)) return null;
+  const key = Buffer.from(raw, "base64url");
+  return key.length === 32 ? key : null;
+}
+
+export function permanentMode(env = environment) {
+  if (env("KLEANLY_PERMANENT_OAUTH_ENABLED") !== "true") return "verification-only";
+  return vaultKey(env) ? "permanent" : "configuration-required";
+}
+
+export function encryptTokens(tokens, binding, key) {
+  if (!Buffer.isBuffer(key) || key.length !== 32) throw new Error("Encryption key unavailable");
+  const plain = Buffer.from(JSON.stringify(tokens), "utf8");
+  if (plain.length > ALLOWED_TOKEN_BYTES) throw new Error("Provider token payload too large");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(Buffer.from(binding));
+  const ciphertext = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return JSON.stringify({
+    v: 1,
+    iv: iv.toString("base64url"),
+    authTag: cipher.getAuthTag().toString("base64url"),
+    data: ciphertext.toString("base64url"),
+  });
+}
+
+export function decryptTokens(sealed, binding, key) {
+  if (!Buffer.isBuffer(key) || key.length !== 32) throw new Error("Encryption key unavailable");
+  const envelope = JSON.parse(sealed);
+  if (envelope.v !== 1) throw new Error("Unsupported token envelope version");
+  for (const prop of ["iv", "authTag", "data"]) {
+    if (typeof envelope[prop] !== "string" || envelope[prop].length > ALLOWED_TOKEN_BYTES * 2) {
+      throw new Error("Malformed encrypted token envelope");
+    }
+  }
+  const iv = Buffer.from(envelope.iv, "base64url");
+  const tag = Buffer.from(envelope.authTag, "base64url");
+  if (iv.length !== 12 || tag.length !== 16) throw new Error("Malformed encrypted token envelope");
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAAD(Buffer.from(binding));
+  decipher.setAuthTag(tag);
+  const plain = Buffer.concat([
+    decipher.update(Buffer.from(envelope.data, "base64url")), decipher.final()
+  ]);
+  if (plain.length > ALLOWED_TOKEN_BYTES) throw new Error("Provider token payload too large");
+  return JSON.parse(plain.toString("utf8"));
+}
+
+export function tokenBinding(connectionId, userId, organizationId) {
+  return JSON.stringify(["kleanly:portal:v1", connectionId, userId, organizationId]);
+}
+
+export function validateProviderTokens(data, previous = null, now = Date.now()) {
+  const accessToken = data?.access_token;
+  const refreshToken = data?.refresh_token || previous?.refreshToken;
+  if (typeof accessToken !== "string" || accessToken.length < 8 || accessToken.length > 8192 ||
+      typeof refreshToken !== "string" || refreshToken.length < 8 || refreshToken.length > 8192) {
+    throw new Error("Provider did not return complete OAuth tokens");
+  }
+  const seconds = Number(data?.expires_in);
+  const duration = Number.isFinite(seconds) && seconds >= 60 && seconds <= 86400
+    ? Math.floor(seconds) : 3600;
+  return { accessToken, refreshToken, expiresAt: now + duration * 1000 };
+}
+
+export function validateProfile(data) {
+  const userId = data?.id ?? data?.user_id;
+  if (typeof userId !== "string" || !/^[\w:@.-]{1,128}$/.test(userId)) {
+    throw new Error("Supabase identity missing a stable user ID");
+  }
+  // The email is only for display. Never authorize access based on it.
+  const email = typeof data.email === "string" && data.email.length <= 254 ? data.email : null;
+  return { userId, email };
+}
+
+export function validateOrganizationResponse(data) {
+  const organizations = Array.isArray(data) ? data : data?.organizations;
+  if (!Array.isArray(organizations) || organizations.length !== 1) {
+    throw new Error("Expected access to exactly one consented Supabase organisation");
+  }
+  const organization = organizations[0];
+  const id = organization?.id;
+  if (typeof id !== "string" || id.length < 1 || id.length > 128 ||
+      !/^[\w:-]+$/.test(id)) {
+    throw new Error("No valid Supabase organisation identifier");
+  }
+  const name = typeof organization.name === "string" && organization.name.trim()
+    ? organization.name.trim().slice(0,160) : "Supabase organisation";
+  const slug = typeof organization.slug === "string" && /^[\w-]{1,128}$/.test(organization.slug)
+    ? organization.slug : null;
+  return { organizationId: id, organizationName: name, organizationSlug: slug };
+}
+
+export async function providerJson(path, accessToken, fetchFn = fetch) {
+  if (!["/profile", "/organizations"].includes(path)) throw new Error("Invalid management path");
+  const response = await fetchFn(MANAGEMENT_BASE + path, {
+    headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new Error("Supabase refused account verification");
+  const json = await response.json();
+  return path === "/profile" ? validateProfile(json) : validateOrganizationResponse(json);
+}
+
+export function newPortalSession(now = Date.now()) {
+  const value = randomBytes(32).toString("base64url");
+  return {
+    cookieValue: value,
+    sessionHash: createHash("sha256").update(value).digest("hex"),
+    csrfToken: randomBytes(32).toString("base64url"),
+    expiresAt: new Date(now + SESSION_SECONDS * 1000).toISOString(),
+  };
+}
+
+export function sessionHash(value) {
+  if (typeof value !== "string" || !/^[\w-]{43}$/.test(value)) return null;
+  return createHash("sha256").update(value).digest("hex");
+}
+
+export function constantTimeEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const x = Buffer.from(a); const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+export function requireSameOrigin(request, origin = "https://kleanly-business-installer-staging.netlify.app") {
+  const originHeader = request.headers.get("origin");
+  const fetchSite = request.headers.get("sec-fetch-site");
+  // Requiring an explicit Origin prevents cross-site form submissions. Real
+  // same-origin browser fetch with JSON and custom headers always includes it.
+  return originHeader === origin && (!fetchSite || ["same-origin", "none"].includes(fetchSite));
+}
+
+export function safeStatusResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store, private",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+    }
+  });
+}
+
+export function newConnectionId() { return randomUUID(); }
