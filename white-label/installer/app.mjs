@@ -8,6 +8,7 @@ let draft = { name: "", domain: "", logoUrl: "", primaryColor: "#059669", desire
 let oauthState = { configured: false, verified: false, connected: false,
   mode: "verification-only", connection: null, organization: null, identity: null,
   csrfToken: null };
+let netlifyState = { configured: false, authenticated: false, connected: false, identity: null, connection: null };
 
 function byId(id) { return document.getElementById(id); }
 function setText(id, value) { byId(id).textContent = value; }
