@@ -169,6 +169,42 @@ function renderProvider(provider, required) {
       card.append(note);
     }
   }
+  if (provider.id === "netlify") {
+    if (netlifyState.connected) {
+      const account = document.createElement("p");
+      account.className = "connection-account";
+      const name = document.createElement("strong");
+      name.textContent = netlifyState.identity?.email || "Netlify account";
+      const sub = document.createElement("span");
+      sub.textContent = "Identity verified by Netlify";
+      account.append(name, sub);
+      card.append(account);
+    }
+    const connect = document.createElement("button");
+    connect.type = "button";
+    connect.className = "action-button provider-oauth";
+    connect.textContent = !oauthState.connected ? "Connect Supabase first"
+      : !netlifyState.configured ? "Authorisation setup pending"
+      : netlifyState.connected ? "Reconnect Netlify account ↗" : "Connect Netlify securely ↗";
+    connect.disabled = !netlifyState.configured || !oauthState.connected;
+    connect.addEventListener("click", () => window.location.assign("/.netlify/functions/netlify-oauth-start"));
+    card.append(connect);
+    if (netlifyState.connected) {
+      const actions = document.createElement("div");
+      actions.className = "connection-actions";
+      for (const [label, action, kind] of [
+        ["Check connection", "check", "primary"], ["Disconnect", "disconnect", "destructive"],
+      ]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "connection-action " + kind;
+        button.textContent = label;
+        button.addEventListener("click", () => performNetlifyConnectionAction(action));
+        actions.append(button);
+      }
+      card.append(actions);
+    }
+  }
   return card;
 }
 function renderProviders() {
