@@ -4,7 +4,7 @@
 # from deploying its production build, functions or scheduled tasks here.
 
 [build]
-  command = "npm test"
+  command = "npm test && node tools/build-crm-preview.mjs"
   publish = "installer"
 
 [[headers]]

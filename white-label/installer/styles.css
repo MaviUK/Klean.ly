@@ -72,3 +72,7 @@
 @media(max-width:680px){.pilot-approval{padding:17px}.pilot-approval button{width:100%}}
 
 .oauth-feedback.is-warning{background:#fff9eb;border-color:#ecd9ad;color:#735321}
+
+/* Static CRM interface preview: navigation link, not a provider action. */
+.crm-preview-link{display:flex;align-items:center;justify-content:center;min-height:48px;text-align:center;text-decoration:none}
+.crm-preview-link:focus-visible{outline:3px solid #0e936b;outline-offset:3px}
