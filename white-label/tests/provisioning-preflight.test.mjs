@@ -38,18 +38,23 @@ function request({ originHeader = origin, csrf = session.csrf_token, method = "P
   });
 }
 
-test("project inventory accepts known JSON shapes and never assumes spare free quota", () => {
-  assert.deepEqual(parseProjectPage([{id:"p1"}]),
-    {observedProjectCount:1,mayHaveMore:false});
-  assert.deepEqual(parseProjectPage({projects:[{id:"p1"},{id:"p2"}]}),
+test("account-wide inventory only counts projects in the verified organisation", () => {
+  const valid = [
+    {id:"p1", organization_id:"org-a"},
+    {id:"p2", organization_id:"org-b"},
+    {id:"p3", organization_id:"org-a"},
+  ];
+  assert.deepEqual(parseProjectPage(valid, "org-a"),
     {observedProjectCount:2,mayHaveMore:false});
-  assert.deepEqual(parseProjectPage({data:[]}),
+  assert.deepEqual(parseProjectPage(valid, "org-b"),
+    {observedProjectCount:1,mayHaveMore:false});
+  assert.deepEqual(parseProjectPage([], "org-a"),
     {observedProjectCount:0,mayHaveMore:false});
-  assert.deepEqual(parseProjectPage(Array.from({length:100},()=>({id:"p"}))),
-    {observedProjectCount:100,mayHaveMore:true});
-  assert.throws(()=>parseProjectPage({unrecognised:[]}));
-  assert.throws(()=>parseProjectPage([{id:"p"},null]));
-  assert.throws(()=>parseProjectPage(Array.from({length:101},()=>({id:"p"}))));
+  assert.throws(()=>parseProjectPage(valid, ""));
+  assert.throws(()=>parseProjectPage({projects:valid}, "org-a"));
+  assert.throws(()=>parseProjectPage([{id:"p1"}], "org-a"));
+  assert.throws(()=>parseProjectPage([null], "org-a"));
+  assert.throws(()=>parseProjectPage(Array.from({length:5001},()=>({organization_id:"org-a"})), "org-a"));
 });
 
 test("inventory uses only cookie-bound org and decrypts server-side; never sends credentials to browser", async () => {
@@ -67,10 +72,10 @@ test("inventory uses only cookie-bound org and decrypts server-side; never sends
   const inventory=await readOrganizationProjectInventory(session,{
     db,key,fetchFn:async (url,options)=>{
       requests++;
-      assert.equal(url,"https://api.supabase.com/v1/organizations/my-test-org/projects?limit=100&offset=0");
+      assert.equal(url,"https://api.supabase.com/v1/projects");
       assert.equal(options.method,"GET");
       assert.equal(options.headers.Authorization,"Bearer "+token);
-      return Response.json({projects:[{id:"project-1"}]});
+      return Response.json([{id:"project-1",organization_id:"org-a"}, {id:"other-tenant",organization_id:"org-b"}]);
     },
   });
   assert.equal(queries,1);
