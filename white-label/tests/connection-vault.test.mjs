@@ -38,7 +38,9 @@ test("AES-256-GCM ciphertext is non-deterministic and authenticated to user/org/
   assert.throws(() => decryptTokens(one, tokenBinding("connection-2", user.userId, org.organizationId), key));
   assert.throws(() => decryptTokens(one, tokenBinding("connection-1", "someone-else", org.organizationId), key));
   const modified = JSON.parse(one);
-  modified.data = modified.data.slice(0, -1) + (modified.data.endsWith("A") ? "B" : "A");
+  // Flip a significant base64url digit. Flipping the LAST digit can alter
+  // only unused padding bits, yielding identical decoded bytes and flaky tests.
+  modified.data = (modified.data.startsWith("A") ? "B" : "A") + modified.data.slice(1);
   assert.throws(() => decryptTokens(JSON.stringify(modified), aad, key));
 });
 
