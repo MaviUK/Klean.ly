@@ -4,7 +4,9 @@ const STORAGE_KEY = "kleanly_business_setup_draft_v1";
 const STEP_COUNT = 4;
 let step = 0;
 let draft = { name: "", domain: "", logoUrl: "", primaryColor: "#059669", desiredProviders: [...requiredProviderIds] };
-let oauthTest = { configured: false, verified: false };
+let oauthState = { configured: false, verified: false, connected: false,
+  mode: "verification-only", connection: null, organization: null, identity: null,
+  csrfToken: null };
 
 function byId(id) { return document.getElementById(id); }
 function setText(id, value) { byId(id).textContent = value; }
@@ -57,10 +59,21 @@ function renderProvider(provider, required) {
   description.textContent = provider.description;
   const detail = document.createElement("div");
   detail.className = "provider-detail";
-  detail.textContent = provider.id === "supabase"
-    ? "This authorisation test does not retain tokens or create a Supabase project. A permanent connection will require a Klean.ly account and encrypted credential vault."
-    : provider.status + ". " + provider.secret;
-  if (provider.id === "supabase" && oauthTest.verified) status.textContent = "Test verified";
+  if (provider.id === "supabase") {
+    if (oauthState.connected) {
+      status.textContent = oauthState.connection?.status === "connected"
+        ? "Connected securely" : "Reconnect needed";
+      detail.textContent = "Your Supabase grant is encrypted in the separate Klean.ly Business control-plane database. All project and company data remains in your own Supabase. No project has been installed.";
+    } else if (oauthState.mode === "permanent") {
+      status.textContent = "Not connected";
+      detail.textContent = "Sign in with your Supabase account. Klean.ly Business will store a private, encrypted organisation grant and give you controls to check, sign out or disconnect.";
+    } else {
+      status.textContent = oauthState.verified ? "Test verified" : "Not connected";
+      detail.textContent = "This temporary test discards all access and refresh tokens. No Supabase project is created or changed.";
+    }
+  } else {
+    detail.textContent = provider.status + ". " + provider.secret;
+  }
   const bottom = document.createElement("div");
   bottom.className = "provider-bottom";
   if (provider.link) {
@@ -98,15 +111,51 @@ function renderProvider(provider, required) {
   }
   card.append(top, heading, description, detail, bottom);
   if (provider.id === "supabase") {
+    if (oauthState.connected && oauthState.organization) {
+      const account = document.createElement("p");
+      account.className = "connection-account";
+      const primary = document.createElement("strong");
+      primary.textContent = oauthState.organization.name;
+      const secondary = document.createElement("span");
+      secondary.textContent = oauthState.identity?.email
+        ? "Signed in as " + oauthState.identity.email : "Supabase organisation authorised";
+      account.append(primary, secondary);
+      card.append(account);
+    }
     const connect = document.createElement("button");
     connect.type = "button";
     connect.className = "action-button provider-oauth";
-    connect.textContent = oauthTest.configured ? "Test Supabase authorisation ↗" : "Authorisation setup pending";
-    connect.disabled = !oauthTest.configured;
+    connect.textContent = oauthState.configured
+      ? oauthState.mode === "permanent"
+        ? (oauthState.connected ? "Reconnect this organisation ↗" : "Connect Supabase securely ↗")
+        : "Test Supabase authorisation ↗"
+      : "Authorisation setup pending";
+    connect.disabled = !oauthState.configured;
     connect.addEventListener("click", () => {
       window.location.assign("/.netlify/functions/supabase-oauth-start");
     });
     card.append(connect);
+    if (oauthState.mode === "permanent" && oauthState.connected) {
+      const actions = document.createElement("div");
+      actions.className = "connection-actions";
+      for (const [label, action, kind] of [
+        ["Check connection", "check", "primary"],
+        ["Sign out", "signout", "secondary"],
+        ["Disconnect", "disconnect", "destructive"],
+      ]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "connection-action " + kind;
+        button.textContent = label;
+        button.addEventListener("click", () => performConnectionAction(action));
+        actions.append(button);
+      }
+      card.append(actions);
+      const note = document.createElement("p");
+      note.className = "provider-note";
+      note.textContent = "Disconnect permanently erases this organisation's local credentials and sessions. To revoke Supabase's original consent, also remove Klean.ly Business from your Supabase account.";
+      card.append(note);
+    }
   }
   return card;
 }
@@ -185,38 +234,95 @@ byId("download-manifest").addEventListener("click", downloadManifest);
 updatePreview();
 goTo(0);
 
-// Supabase OAuth pilot: status is verified by the server, never trusted from
-// a query string. This test does not store API credentials or grant admin access.
+// Supabase OAuth: trust only the server's cookie-bound session status, never
+// a query string, localStorage, or a client-supplied owner/company identifier.
 async function refreshSupabaseOAuthStatus() {
   const queryResult = new URLSearchParams(window.location.search).get("supabase_test");
   const messages = {
-    configuration_required: "The Client Secret must be set securely in the staging Netlify site before testing.",
+    configuration_required: "The Supabase connection server is not fully configured.",
     denied: "Supabase authorisation was cancelled or denied.",
     expired_or_invalid: "The authorisation session expired or did not match. Try again.",
     invalid_response: "Supabase did not return a valid authorisation code. Try again.",
     exchange_failed: "Supabase could not finish the token exchange. Check the client secret and callback URL.",
+    identity_unavailable: "Supabase could not confirm a single organisation and account owner. Select one organisation during authorisation, then try again.",
+    storage_unavailable: "The secure portal database could not save this grant. Nothing was connected. Please try later.",
   };
   try {
     const response = await fetch("/.netlify/functions/supabase-oauth-status", {
       credentials: "same-origin", cache: "no-store"
     });
-    if (!response.ok) throw new Error("Status endpoint unavailable");
-    const status = await response.json();
-    oauthTest = { configured: status.configured === true, verified: status.verified === true };
-    if (queryResult === "verified") {
-      setText("supabase-oauth-result", oauthTest.verified
+    if (!response.ok) throw new Error("Connection status unavailable");
+    const data = await response.json();
+    oauthState = {
+      configured: data.configured === true, mode: data.mode,
+      verified: data.verified === true, connected: data.connected === true,
+      connection: data.connection ?? null,
+      organization: data.organization ?? null, identity: data.identity ?? null,
+      csrfToken: data.csrfToken ?? null,
+    };
+    if (queryResult === "connected") {
+      setText("supabase-oauth-result", oauthState.mode === "permanent" && oauthState.connected
+        ? "Supabase connected successfully. Your organisation grant is encrypted and stored only on the secure server. No customer project has been created."
+        : "Unable to confirm a saved connection. Please try again.");
+      if (oauthState.connected) goTo(1);
+    } else if (queryResult === "verified") {
+      setText("supabase-oauth-result", oauthState.mode === "verification-only" && oauthState.verified
         ? "Supabase authorisation was verified successfully. This is a 15-minute TEST confirmation only: no access or refresh tokens were retained."
-        : "The authorisation confirmation could not be validated. Please retry.");
-      if (oauthTest.verified) goTo(1);
+        : "Unable to validate the temporary verification. Please retry.");
+      if (oauthState.verified) goTo(1);
     } else if (messages[queryResult]) {
       setText("supabase-oauth-result", messages[queryResult]);
       goTo(1);
-    } else if (oauthTest.verified) {
+    } else if (oauthState.connected) {
+      setText("supabase-oauth-result", "Supabase account connected. You can check its status, reconnect, sign out, or remove its saved credentials below.");
+    } else if (oauthState.verified) {
       setText("supabase-oauth-result", "Authorisation test passed for this browser. No credentials are saved.");
+    } else {
+      setText("supabase-oauth-result", "");
     }
   } catch {
-    setText("supabase-oauth-result", "The Supabase authorisation test is not available yet. No accounts were connected.");
+    setText("supabase-oauth-result", "The secure Supabase connection service is temporarily unavailable. Please try later.");
+  }
+  if (queryResult) {
+    window.history.replaceState({}, "", window.location.pathname + window.location.hash);
   }
   renderProviders();
 }
+
+async function performConnectionAction(action) {
+  if (!oauthState.connected || oauthState.mode !== "permanent" || !oauthState.csrfToken) return;
+  if (action === "disconnect" && !window.confirm(
+    "Disconnect Supabase and delete this organisation's encrypted credentials and active sessions from Klean.ly Business? This cannot be undone."
+  )) return;
+  const endpoints = {
+    check: "supabase-connection-check",
+    signout: "supabase-connection-signout",
+    disconnect: "supabase-connection-disconnect",
+  };
+  if (!endpoints[action]) return;
+  setText("supabase-oauth-result", "Checking your secure connection...");
+  try {
+    const response = await fetch("/.netlify/functions/" + endpoints[action], {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "The action could not be completed.");
+    await refreshSupabaseOAuthStatus();
+    if (action === "check") {
+      const message = data.state === "connected" ? "Supabase is connected and your grant is valid."
+        : data.state === "reauthorisation_required" ? "Supabase needs to be re-authorised."
+        : "Supabase could not be reached for a fresh check. Your saved connection is unchanged.";
+      setText("supabase-oauth-result", message);
+    } else if (action === "disconnect") {
+      setText("supabase-oauth-result", "Supabase disconnected. Klean.ly Business deleted the encrypted grant and its sessions. You may separately revoke the original consent in Supabase.");
+    } else {
+      setText("supabase-oauth-result", "Signed out of this device. Your encrypted Supabase connection remains safely stored; authorise again to sign in.");
+    }
+  } catch (error) {
+    setText("supabase-oauth-result", error?.message || "This action could not be completed.");
+  }
+  renderProviders();
+}
+
 refreshSupabaseOAuthStatus();
