@@ -83,18 +83,20 @@ export default async function handler(request) {
     } catch {
       return failedVerification("token_response_invalid", cleanup);
     }
-    try {
-      profile = await providerJson("/profile", tokens.accessToken);
-    } catch (error) {
-      // Separate account-identity failure from organisation-grant failure.
-      // No received credential is retained, regardless of which failed.
-      return failedVerification(lookupFailure("profile", error), cleanup);
+    // Query concurrently to stay within the Netlify Function time budget.
+    // Promise.allSettled lets us identify exactly which validation failed.
+    const results = await Promise.allSettled([
+      providerJson("/profile", tokens.accessToken),
+      providerJson("/organizations", tokens.accessToken),
+    ]);
+    if (results[0].status === "rejected") {
+      return failedVerification(lookupFailure("profile", results[0].reason), cleanup);
     }
-    try {
-      organization = await providerJson("/organizations", tokens.accessToken);
-    } catch (error) {
-      return failedVerification(lookupFailure("organisations", error), cleanup);
+    if (results[1].status === "rejected") {
+      return failedVerification(lookupFailure("organisations", results[1].reason), cleanup);
     }
+    profile = results[0].value;
+    organization = results[1].value;
 
     try {
       const { persistAuthorization, portalSessionCookie } =
