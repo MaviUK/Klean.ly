@@ -29,7 +29,8 @@ const safeDiagnosticMessages = Object.freeze({
   netlify_validation_failed: "The Netlify connection could not be verified right now.",
   stored_grant_unavailable: "The linked Supabase authorisation could not be read securely.",
   organization_identifier_unavailable: "The connected Supabase organisation has no usable identifier.",
-  projects_permission_denied: "Supabase denied permission to list projects. We may need to adjust the OAuth app permissions.",
+  projects_permission_denied: "Supabase denied project-list access. Check that the OAuth app has Projects Read permission.",
+  projects_auth_expired: "Supabase declined this authorisation for listing projects. Please reconnect Supabase on Step 2.",
   projects_rate_limited: "Supabase temporarily limited project-listing requests.",
   projects_upstream_unavailable: "Supabase could not provide the project list right now.",
   projects_response_invalid: "Supabase returned a project list in an unexpected format.",
@@ -46,15 +47,24 @@ function safePreflightFailure(code) {
   }, 503);
 }
 
-export function parseProjectPage(body) {
-  const projects = Array.isArray(body) ? body
-    : Array.isArray(body?.projects) ? body.projects
-    : Array.isArray(body?.data) ? body.data : null;
-  if (!projects || projects.length > 100 || projects.some(
-    (item) => !item || typeof item !== "object" || Array.isArray(item)
-  )) throw new ProvisioningPreflightError("projects_response_invalid");
-  // 100 is the maximum number requested. A full page may have more projects.
-  return { observedProjectCount: projects.length, mayHaveMore: projects.length === 100 };
+// GET /v1/projects is the account-wide endpoint allowed by projects:read.
+// The returned array includes a provider-issued organization_id per project.
+// Count ONLY projects assigned to the organization verified in the portal
+// session, never an organization provided by the browser or a query string.
+// Fail closed on invalid/truncated-looking results instead of undercounting.
+export function parseProjectPage(body, organizationId) {
+  if (!Array.isArray(body) || !organizationId ||
+      typeof organizationId !== "string" || organizationId.length > 128 ||
+      body.length > 5000 ||
+      body.some((item) => !item || typeof item !== "object" || Array.isArray(item) ||
+        typeof item.organization_id !== "string" ||
+        item.organization_id.length < 1 || item.organization_id.length > 128)) {
+    throw new ProvisioningPreflightError("projects_response_invalid");
+  }
+  return {
+    observedProjectCount: body.filter((item) => item.organization_id === organizationId).length,
+    mayHaveMore: false,
+  };
 }
 
 export async function readOrganizationProjectInventory(
@@ -79,8 +89,11 @@ export async function readOrganizationProjectInventory(
   const credentials = decryptTokens(result.rows[0].encrypted_tokens,
     tokenBinding(current.connection_id, current.user_id, current.organization_id), key
   );
-  const url = "https://api.supabase.com/v1/organizations/" +
-    encodeURIComponent(slug) + "/projects?limit=100&offset=0";
+  // Organization-specific /v1/organizations/{slug}/projects returned 403
+  // for the verified staging OAuth grant despite Projects Read. The
+  // documented account-wide listing accepts projects:read and includes an
+  // organization_id so we can filter against the verified session securely.
+  const url = "https://api.supabase.com/v1/projects";
   const response = await fetchFn(url, {
     method: "GET",
     headers: {
@@ -88,12 +101,15 @@ export async function readOrganizationProjectInventory(
     },
     signal: AbortSignal.timeout(15000),
   });
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
+    throw new ProvisioningPreflightError("projects_auth_expired");
+  }
+  if (response.status === 403) {
     throw new ProvisioningPreflightError("projects_permission_denied");
   }
   if (response.status === 429) throw new ProvisioningPreflightError("projects_rate_limited");
   if (!response.ok) throw new ProvisioningPreflightError("projects_upstream_unavailable");
-  return parseProjectPage(await response.json());
+  return parseProjectPage(await response.json(), current.organization_id);
 }
 
 async function verifySupabase(current) {
