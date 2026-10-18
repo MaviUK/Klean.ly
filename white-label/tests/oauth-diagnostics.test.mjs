@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import start from "../netlify/functions/supabase-oauth-start.mjs";
-import callback from "../netlify/functions/supabase-oauth-callback.mjs";
+import { createOAuthCallback } from "../netlify/functions/supabase-oauth-callback.mjs";
 import {
   CALLBACK_URL, FLOW_COOKIE, TOKEN_URL,
 } from "../netlify/functions/_lib/supabase-oauth.mjs";
@@ -33,6 +33,10 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
     { title: "profile OAuth scope forbidden and members forbidden", kind: "profile_forbidden",
       expected: "members_forbidden" },
     { title: "profile forbidden but lone owner identity proved by membership", kind: "profile_fallback_valid",
+      expected: "connected" },
+    { title: "direct profile and organisation verification succeeds", kind: "profile_valid",
+      expected: "connected" },
+    { title: "sole owner grant fails closed on simulated storage failure", kind: "profile_fallback_store_error",
       expected: "storage_unavailable" },
     { title: "profile forbidden and org has two members", kind: "profile_fallback_team",
       expected: "members_not_single" },
@@ -121,10 +125,39 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
         }
         throw new Error("Unexpected URL in OAuth test");
       };
+      // IMPORTANT: never invoke the production persistence implementation in
+      // unit tests. A Netlify deploy may expose a *real* portal database URL,
+      // even during npm test in deploy-preview or production build contexts.
+      // All successful code paths use this in-memory double with zero I/O.
+      const savedGrants = [];
+      const callback = createOAuthCallback({
+        persistGrant: async (details) => {
+          savedGrants.push(details);
+          if (fixture.kind === "profile_fallback_store_error") {
+            throw new Error("Simulated storage failure (no I/O)");
+          }
+          return "__Host-kleanly_portal_session=unit_test_cookie;"
+            + " Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600";
+        },
+      });
       const response = await callback(new Request(CALLBACK_URL + "?" +
         new URLSearchParams({ code: "unit-test-oauth-code", state }), {
           headers: { Cookie: savedCookie },
         }));
+      const expectedSaveCalls = ["profile_fallback_valid", "profile_valid",
+        "profile_fallback_store_error"].includes(fixture.kind) ? 1 : 0;
+      assert.equal(savedGrants.length, expectedSaveCalls,
+        "Unexpected persistence call for " + fixture.title);
+      if (expectedSaveCalls) {
+        const { profile, organization, tokens } = savedGrants[0];
+        assert.deepEqual(profile, {
+          userId: cleanProfile.gotrue_id, email: cleanProfile.primary_email,
+        });
+        assert.equal(organization.organizationId, cleanOrg.id);
+        assert.equal(organization.organizationSlug, cleanOrg.slug);
+        assert.equal(tokens.accessToken, secretToken);
+        assert.equal(tokens.refreshToken, refreshToken);
+      }
       assert.equal(response.status, 303, fixture.title);
       assert.equal(new URL(response.headers.get("Location")).searchParams.get("supabase_test"),
         fixture.expected, fixture.title);
