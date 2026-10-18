@@ -281,6 +281,7 @@ document.querySelectorAll("[data-step]").forEach((button) => {
   button.addEventListener("click", () => goTo(Number(button.dataset.step)));
 });
 byId("download-manifest").addEventListener("click", downloadManifest);
+byId("check-provisioning-readiness").addEventListener("click", checkProvisioningReadiness);
 updatePreview();
 goTo(0);
 
