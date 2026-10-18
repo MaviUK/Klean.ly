@@ -73,6 +73,16 @@ function renderProvider(provider, required) {
       status.textContent = oauthState.verified ? "Test verified" : "Not connected";
       detail.textContent = "This temporary test discards all access and refresh tokens. No Supabase project is created or changed.";
     }
+  } else if (provider.id === "netlify") {
+    if (netlifyState.connected) {
+      status.textContent = netlifyState.connection?.status === "connected"
+        ? "Connected securely" : "Reconnect needed";
+      detail.textContent = "The Netlify grant is encrypted in the installer control plane. No site has been created.";
+    } else if (!oauthState.connected) {
+      detail.textContent = "Connect Supabase first to unlock Netlify authorisation.";
+    } else {
+      detail.textContent = "Connect your own Netlify account securely to enable company-owned hosting.";
+    }
   } else {
     detail.textContent = provider.status + ". " + provider.secret;
   }
