@@ -127,7 +127,7 @@ test("ledger state transitions require a matching unique submitted reservation",
   assert.equal(await markPilotSubmitted(current,"r1",db),true);
   assert.equal(await markPilotCompleted(current,"r1","created","abcdefghijklmnopqrst",null,db),true);
   assert.equal(await markPilotCompleted(current,"r1","unknown",null,"provider_result_unknown",db),true);
-  assert.throws(()=>markPilotCompleted(current,"r1","created",null,null,db));
+  await assert.rejects(()=>markPilotCompleted(current,"r1","created",null,null,db));
   assert.match(calls[0].sql,/status = 'reserved'/);
   assert.match(calls[1].sql,/status = 'submitted'/);
 });
