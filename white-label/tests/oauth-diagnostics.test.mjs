@@ -32,6 +32,14 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
       expected: "profile_identity_invalid" },
     { title: "profile OAuth scope forbidden and members forbidden", kind: "profile_forbidden",
       expected: "members_forbidden" },
+    { title: "profile returns HTTP 401 but provider verifies sole owner", kind: "profile_unauthorized",
+      expected: "connected" },
+    { title: "profile returns 401 and organisation access also denied", kind: "profile_and_org_unauthorized",
+      expected: "organisations_forbidden" },
+    { title: "profile returns 401 but membership denied", kind: "profile_unauthorized_members_denied",
+      expected: "members_forbidden" },
+    { title: "profile returns 401 and org has multiple members", kind: "profile_unauthorized_team",
+      expected: "members_not_single" },
     { title: "profile forbidden but lone owner identity proved by membership", kind: "profile_fallback_valid",
       expected: "connected" },
     { title: "direct profile and organisation verification succeeds", kind: "profile_valid",
@@ -85,6 +93,10 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
         }
         assert.equal(options.headers.Authorization, "Bearer " + secretToken);
         if (url === MANAGEMENT_BASE + "/profile") {
+          if (fixture.kind.startsWith("profile_unauthorized") ||
+              fixture.kind === "profile_and_org_unauthorized") {
+            return new Response(null, { status: 401 });
+          }
           if (fixture.kind === "profile_forbidden" || fixture.kind.startsWith("profile_fallback_")) {
             return new Response(null, { status: 403 });
           }
@@ -95,6 +107,9 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
         }
         if (url === MANAGEMENT_BASE + "/organizations") {
           if (fixture.kind === "org_forbidden") return new Response(null, { status: 403 });
+          if (fixture.kind === "profile_and_org_unauthorized") {
+            return new Response(null, { status: 401 });
+          }
           if (fixture.kind === "org_unavailable") return new Response(null, { status: 503 });
           if (fixture.kind === "org_missing_list") return Response.json({ data: [] });
           if (fixture.kind === "org_empty") return Response.json([]);
@@ -107,12 +122,17 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
         }
         if (url === MANAGEMENT_BASE + "/organizations/" + cleanOrg.slug + "/members") {
           if (fixture.kind === "profile_forbidden") return new Response(null, { status: 403 });
+          if (fixture.kind === "profile_unauthorized_members_denied") {
+            return new Response(null, { status: 401 });
+          }
           if (fixture.kind === "profile_fallback_unavailable") return new Response(null, { status: 503 });
           if (fixture.kind === "profile_fallback_empty") return Response.json([]);
-          if (fixture.kind === "profile_fallback_team") return Response.json([
+          if (["profile_fallback_team", "profile_unauthorized_team"].includes(fixture.kind)) {
+            return Response.json([
             { user_id: cleanProfile.gotrue_id, role_name: "Owner", email: cleanProfile.primary_email },
             { user_id: "test-team-member", role_name: "Developer", email: "other@example.invalid" },
           ]);
+          }
           if (fixture.kind === "profile_fallback_admin") return Response.json([
             { user_id: cleanProfile.gotrue_id, role_name: "Admin", email: cleanProfile.primary_email }
           ]);
@@ -145,7 +165,7 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
           headers: { Cookie: savedCookie },
         }));
       const expectedSaveCalls = ["profile_fallback_valid", "profile_valid",
-        "profile_fallback_store_error"].includes(fixture.kind) ? 1 : 0;
+        "profile_unauthorized", "profile_fallback_store_error"].includes(fixture.kind) ? 1 : 0;
       assert.equal(savedGrants.length, expectedSaveCalls,
         "Unexpected persistence call for " + fixture.title);
       if (expectedSaveCalls) {

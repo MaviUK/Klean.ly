@@ -111,10 +111,14 @@ export function createOAuthCallback({ persistGrant = persistVerifiedGrant } = {}
       profile = results[0].value;
     } else {
       const profileFailure = results[0].reason;
-      // Management API /profile is not OAuth-scoped. Only a 403 may use the
-      // narrowly permitted organisation-membership fallback. A 401 (revoked
-      // or invalid access token) must never be treated as identity proof.
-      if (!(profileFailure instanceof SupabaseGrantRejected && profileFailure.status === 403)) {
+      // Management API /profile may reject OAuth-scoped credentials with
+      // either 401 or 403 even when the SAME bearer token has just successfully
+      // verified exactly one organisation through /organizations above.
+      // Neither status proves identity. Only a fresh provider-confirmed
+      // single-member Owner record from that organisation can do that.
+      // Revoked/invalid tokens fail the mandatory organisation lookup first.
+      if (!(profileFailure instanceof SupabaseGrantRejected &&
+          [401, 403].includes(profileFailure.status))) {
         return failedVerification(lookupFailure("profile", profileFailure), cleanup);
       }
       try {
