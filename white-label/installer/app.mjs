@@ -679,4 +679,161 @@ async function checkFreeProjectCapacity() {
   }
 }
 
+
+function updatePilotApprovalState() {
+  const canSubmit = pilotProposal?.creationEnabled === true &&
+    pilotProposal.candidateForSingleFreeProject === true &&
+    !pilotProposal.existingAttempt &&
+    !pilotCreationPending &&
+    byId("pilot-accept-costs").checked &&
+    byId("pilot-confirm-phrase").value === pilotProposal.confirmationPhrase;
+  byId("create-test-project").disabled = !canSubmit;
+}
+
+function clearPilotProposal() {
+  pilotProposal = null;
+  byId("test-project-approval").hidden = true;
+  byId("pilot-confirm-phrase").value = "";
+  byId("pilot-accept-costs").checked = false;
+  updatePilotApprovalState();
+}
+
+async function reviewTestProject() {
+  if (pilotProposalPending || pilotCreationPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  pilotProposalPending = true;
+  clearPilotProposal();
+  renderProviders();
+  const output = byId("test-project-proposal-result");
+  output.classList.remove("is-error");
+  output.classList.remove("is-warning");
+  output.textContent = "Checking the test organisation and its one-project creation safeguards...";
+  try {
+    const response = await fetch("/.netlify/functions/test-project-proposal", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "The test project proposal is currently unavailable.");
+    }
+    if (data.mode !== "staging_one_project_pilot" ||
+        data.noPaidAddonsRequested !== true ||
+        data.needsExplicitConfirmation !== true ||
+        typeof data.projectName !== "string" ||
+        typeof data.organization !== "string" ||
+        typeof data.regionSelection !== "string") {
+      throw new Error("The server returned an unexpected test project proposal.");
+    }
+
+    const heading = "Supabase project: " + data.projectName +
+      ". Organisation: " + data.organization +
+      ". Region: " + data.regionSelection + ". ";
+    const capacity = "Free Plan " + (data.freePlanVerified ? "verified" : "not verified") +
+      "; projects visible to your account: " + data.visibleProjects + ". ";
+    const disclaimer = "No paid add-ons will be requested, but Supabase makes the final quota, " +
+      "region and billing decisions. Review only — no project was created. ";
+
+    pilotProposal = data;
+    if (data.existingAttempt) {
+      output.classList.add("is-warning");
+      const state = data.existingAttempt.status;
+      output.textContent = heading + capacity + disclaimer +
+        "An earlier test creation attempt already exists (status: " + state + "). " +
+        "A second request is permanently blocked. " +
+        (data.existingAttempt.projectRef
+          ? "Supabase reference: " + data.existingAttempt.projectRef + ". "
+          : "Check your Supabase projects before taking further action. ");
+    } else if (!data.candidateForSingleFreeProject) {
+      output.classList.add("is-warning");
+      output.textContent = heading + capacity + disclaimer +
+        "Free Plan eligibility has not been confirmed. Creation stays locked.";
+    } else if (data.creationLocked || !data.creationEnabled) {
+      output.classList.add("is-warning");
+      output.textContent = heading + capacity + disclaimer +
+        "One free test-project slot appears available. REAL CREATION IS LOCKED until " +
+        "the staging pilot is enabled after your explicit approval.";
+    } else {
+      output.textContent = heading + capacity + disclaimer +
+        "The test pilot is unlocked. To create a real project, acknowledge the " +
+        "potential provider costs and type the confirmation phrase below.";
+      byId("pilot-confirm-phrase-display").textContent = data.confirmationPhrase;
+      byId("test-project-approval").hidden = false;
+    }
+  } catch (error) {
+    pilotProposal = null;
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Unable to review the test project.") +
+      " No project was created.";
+  } finally {
+    pilotProposalPending = false;
+    updatePilotApprovalState();
+    renderProviders();
+  }
+}
+
+async function createOneTestProject(event) {
+  event.preventDefault();
+  if (pilotCreationPending || !pilotProposal?.creationEnabled ||
+      !pilotProposal.candidateForSingleFreeProject || pilotProposal.existingAttempt ||
+      byId("pilot-confirm-phrase").value !== pilotProposal.confirmationPhrase ||
+      !byId("pilot-accept-costs").checked || !oauthState.csrfToken) {
+    return;
+  }
+  if (!window.confirm(
+    "FINAL CONFIRMATION: Send ONE real Supabase project creation request to " +
+    pilotProposal.organization + "? This uses a Free Plan slot, but any provider costs " +
+    "are governed by Supabase. No website will be created."
+  )) return;
+
+  pilotCreationPending = true;
+  renderProviders();
+  updatePilotApprovalState();
+  const output = byId("test-project-create-result");
+  output.classList.remove("is-error");
+  output.textContent = "Submitting the single approved test project request. Do not refresh or click again...";
+  try {
+    const response = await fetch("/.netlify/functions/test-project-create", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": oauthState.csrfToken,
+      },
+      body: JSON.stringify({
+        confirmation: pilotProposal.confirmationPhrase,
+        acknowledgeProviderCharges: true,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(
+      (data.error || "Supabase creation could not be verified.") +
+      (data.code ? " (" + data.code + ")" : "")
+    );
+    if (data.state !== "project_created" || data.projectCreated !== true ||
+        !/^[a-z0-9]{20}$/i.test(data.projectRef) ||
+        data.websiteCreated !== false || data.crmSchemaInstalled !== false) {
+      throw new Error("Creation response could not be verified. Inspect the Supabase dashboard before attempting anything else.");
+    }
+    output.textContent = "One new staging Supabase project has been created: " +
+      data.projectName + " (" + data.projectRef + "). No website or CRM schema has been installed. ";
+    const link = document.createElement("a");
+    link.href = "https://supabase.com/dashboard/project/" + data.projectRef;
+    link.rel = "noopener noreferrer";
+    link.target = "_blank";
+    link.textContent = "Open the test project in Supabase ↗";
+    output.append(link);
+    byId("provisioning-readiness-result").textContent = "";
+    byId("free-project-capacity-result").textContent = "";
+    clearInstallationPreview();
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "The test creation request has an unknown result.") +
+      " Do NOT try creating another project. Check the Supabase project list first.";
+  } finally {
+    pilotCreationPending = false;
+    clearPilotProposal();
+    renderProviders();
+  }
+}
+
 refreshSupabaseOAuthStatus().then(refreshNetlifyOAuthStatus);
