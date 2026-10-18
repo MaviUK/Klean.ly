@@ -30,8 +30,22 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
       expected: "token_response_invalid" },
     { title: "profile missing provider user ID", kind: "profile_missing_id",
       expected: "profile_identity_invalid" },
-    { title: "profile OAuth scope forbidden", kind: "profile_forbidden",
-      expected: "profile_forbidden" },
+    { title: "profile OAuth scope forbidden and members forbidden", kind: "profile_forbidden",
+      expected: "members_forbidden" },
+    { title: "profile forbidden but lone owner identity proved by membership", kind: "profile_fallback_valid",
+      expected: "storage_unavailable" },
+    { title: "profile forbidden and org has two members", kind: "profile_fallback_team",
+      expected: "members_not_single" },
+    { title: "profile forbidden and owner not confirmed", kind: "profile_fallback_admin",
+      expected: "members_owner_required" },
+    { title: "profile forbidden and org membership empty", kind: "profile_fallback_empty",
+      expected: "members_not_single" },
+    { title: "profile forbidden and owner member id missing", kind: "profile_fallback_no_id",
+      expected: "members_identity_invalid" },
+    { title: "profile forbidden and member endpoint temporarily unavailable", kind: "profile_fallback_unavailable",
+      expected: "members_unavailable" },
+    { title: "profile forbidden and selected org has no slug", kind: "profile_fallback_no_slug",
+      expected: "members_slug_unavailable" },
     { title: "profile fetch rate limited", kind: "profile_limited",
       expected: "profile_rate_limited" },
     { title: "profile API unavailable", kind: "profile_unavailable",
@@ -67,7 +81,9 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
         }
         assert.equal(options.headers.Authorization, "Bearer " + secretToken);
         if (url === MANAGEMENT_BASE + "/profile") {
-          if (fixture.kind === "profile_forbidden") return new Response(null, { status: 403 });
+          if (fixture.kind === "profile_forbidden" || fixture.kind.startsWith("profile_fallback_")) {
+            return new Response(null, { status: 403 });
+          }
           if (fixture.kind === "profile_limited") return new Response(null, { status: 429 });
           if (fixture.kind === "profile_unavailable") return new Response(null, { status: 503 });
           if (fixture.kind === "profile_missing_id") return Response.json({ primary_email: "test@example.invalid" });
@@ -80,7 +96,28 @@ test("Supabase OAuth callback reports safe, specific diagnostics without persist
           if (fixture.kind === "org_empty") return Response.json([]);
           if (fixture.kind === "org_many") return Response.json([cleanOrg, { id: "different-org", name: "Different" }]);
           if (fixture.kind === "org_invalid_id") return Response.json([{ name: "Missing id" }]);
+          if (fixture.kind === "profile_fallback_no_slug") return Response.json([
+            { id: cleanOrg.id, name: cleanOrg.name }
+          ]);
           return Response.json([cleanOrg]);
+        }
+        if (url === MANAGEMENT_BASE + "/organizations/" + cleanOrg.slug + "/members") {
+          if (fixture.kind === "profile_forbidden") return new Response(null, { status: 403 });
+          if (fixture.kind === "profile_fallback_unavailable") return new Response(null, { status: 503 });
+          if (fixture.kind === "profile_fallback_empty") return Response.json([]);
+          if (fixture.kind === "profile_fallback_team") return Response.json([
+            { user_id: cleanProfile.gotrue_id, role_name: "Owner", email: cleanProfile.primary_email },
+            { user_id: "test-team-member", role_name: "Developer", email: "other@example.invalid" },
+          ]);
+          if (fixture.kind === "profile_fallback_admin") return Response.json([
+            { user_id: cleanProfile.gotrue_id, role_name: "Admin", email: cleanProfile.primary_email }
+          ]);
+          if (fixture.kind === "profile_fallback_no_id") return Response.json([
+            { role_name: "Owner", email: cleanProfile.primary_email }
+          ]);
+          return Response.json([
+            { user_id: cleanProfile.gotrue_id, role_name: "Owner", email: cleanProfile.primary_email }
+          ]);
         }
         throw new Error("Unexpected URL in OAuth test");
       };

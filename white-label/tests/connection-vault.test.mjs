@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import {
   SESSION_COOKIE, SESSION_SECONDS, permanentMode, vaultKey, encryptTokens, decryptTokens,
   validateProviderTokens, validateProfile, validateOrganizationResponse,
+  validateSoleOwnerMemberResponse, organizationMembersPath,
   providerJson, tokenBinding, newPortalSession, sessionHash, constantTimeEqual,
   requireSameOrigin, safeStatusResponse,
 } from "../netlify/functions/_lib/connection-vault.mjs";
@@ -85,21 +86,58 @@ test("identity and single-org grant must be provider verified, never browser-sel
   assert.throws(() => validateOrganizationResponse([{ name: "Missing ID" }]));
 });
 
+test("owner-only membership fallback never guesses an identity for teams", () => {
+  const validOwner = {
+    user_id: user.userId, email: user.email, role_name: "Owner",
+    user_name: "Test Owner",
+  };
+  assert.equal(organizationMembersPath(org), "/organizations/owner-org/members");
+  assert.deepEqual(validateSoleOwnerMemberResponse([validOwner]), user);
+  assert.deepEqual(validateSoleOwnerMemberResponse([
+    { ...validOwner, role_name: "org_owner" },
+  ]), user);
+  const rejectsWith = (data, code) => assert.throws(
+    () => validateSoleOwnerMemberResponse(data),
+    error => error.code === code
+  );
+  rejectsWith([], "members_not_single");
+  rejectsWith([validOwner, { user_id: "other", role_name: "Owner" }], "members_not_single");
+  rejectsWith([validOwner, { user_id: "other", role_name: "Developer" }], "members_not_single");
+  rejectsWith({ members: [validOwner] }, "members_response_invalid");
+  rejectsWith([{ email: user.email, role_name: "Owner" }], "members_identity_invalid");
+  rejectsWith([{ ...validOwner, role_name: "Admin" }], "members_owner_required");
+  rejectsWith([{ ...validOwner, role_name: "Developer" }], "members_owner_required");
+  rejectsWith([{ ...validOwner, user_id: "user; DROP TABLE sessions;" }], "members_identity_invalid");
+  assert.throws(() => organizationMembersPath({
+    ...org, organizationSlug: "x/../../untrusted"
+  }), error => error.code === "members_slug_unavailable");
+  assert.throws(() => organizationMembersPath({
+    ...org, organizationSlug: null
+  }), error => error.code === "members_slug_unavailable");
+});
+
 test("profile and organization fetch are hardcoded to Supabase Management API paths", async () => {
   let seen = 0;
   const fakeFetch = async (url, opts) => {
     seen++;
-    assert.match(url, /^https:\/\/api\.supabase\.com\/v1\/(profile|organizations)$/);
+    assert.match(url, /^https:\/\/api\.supabase\.com\/v1\/(profile|organizations(?:\/owner-org\/members)?)$/);
     assert.equal(opts.headers.Authorization, "Bearer token_goes_here");
     return new Response(JSON.stringify(url.endsWith("/profile") ?
       { gotrue_id: user.userId, primary_email: user.email, username: "owner" } :
+      url.endsWith("/members") ?
+      [{ user_id: user.userId, email: user.email, role_name: "Owner" }] :
       [{ id: org.organizationId, name: org.organizationName, slug: org.organizationSlug }]
     ), { status: 200 });
   };
   assert.deepEqual(await providerJson("/profile", "token_goes_here", fakeFetch), user);
   assert.deepEqual(await providerJson("/organizations", "token_goes_here", fakeFetch), org);
-  assert.equal(seen, 2);
+  assert.deepEqual(await providerJson(
+    "/organizations/owner-org/members", "token_goes_here", fakeFetch
+  ), user);
+  assert.equal(seen, 3);
   await assert.rejects(() => providerJson("/someone-else", "token", fakeFetch));
+  await assert.rejects(() => providerJson("/organizations/../members", "token", fakeFetch));
+  await assert.rejects(() => providerJson("/organizations/OWNER/members", "token", fakeFetch));
 });
 
 test("opaque session cookies store only a digest, and modifying CSRF/origin is rejected", () => {
