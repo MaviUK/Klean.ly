@@ -93,6 +93,11 @@
           </div>
           <div id="provisioning-readiness-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div class="export-panel">
+            <div><h2>Preview automatic installation</h2><p>See the proposed steps for this company using your securely connected accounts. This is a read-only preview: it cannot create projects or sites, deploy code, or approve charges.</p></div>
+            <button type="button" id="preview-installation-plan" class="action-button" disabled>Preview installation</button>
+          </div>
+          <div id="installation-plan-result" class="installation-plan-result" role="status" aria-live="polite" hidden></div>
+          <div class="export-panel">
             <div><h2>Installation manifest</h2><p>No API keys, passwords or private data are included.</p></div>
             <button type="button" id="download-manifest" class="action-button">Download blueprint ↓</button>
           </div>
