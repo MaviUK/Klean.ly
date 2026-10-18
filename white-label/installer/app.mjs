@@ -628,4 +628,47 @@ async function previewInstallation() {
   }
 }
 
+async function checkFreeProjectCapacity() {
+  if (freeCapacityPending || !oauthState.connected || !netlifyState.connected ||
+      !oauthState.csrfToken) return;
+  const output = byId("free-project-capacity-result");
+  output.classList.remove("is-error");
+  output.textContent = "Checking the Supabase organisation plan and existing projects. Nothing will be created...";
+  freeCapacityPending = true;
+  renderProviders();
+  try {
+    const response = await fetch("/.netlify/functions/free-project-capacity", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error((data.error || "Supabase capacity could not be checked.") +
+        (data.code ? " (Reference: " + data.code + ")" : ""));
+    }
+    if (data.allowedToCreateProject !== false || data.projectCreated !== false ||
+        data.chargesApproved !== false || !Number.isSafeInteger(data.visibleAccountProjects) ||
+        !Number.isSafeInteger(data.thisOrganizationProjects)) {
+      throw new Error("The server returned an unexpected project eligibility status.");
+    }
+    const prefix = data.freePlanConfirmed
+      ? "Supabase confirms this organisation is on the Free Plan. "
+      : "The organisation's Free Plan could not be confirmed. ";
+    const count = "Projects visible to this account: " + data.visibleAccountProjects +
+      " (" + data.thisOrganizationProjects + " in " + data.organizationName + "). ";
+    const next = data.appearsWithinFreeLimit
+      ? "This appears to be within the usual two-project limit, but availability is NOT guaranteed. "
+      : "A free project slot is not currently confirmed. ";
+    output.textContent = prefix + count + next +
+      "No project was created, no payment approved, and automatic creation remains locked until you explicitly approve a test.";
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Unable to check Supabase project capacity.") +
+      " No project, website or charge was created.";
+  } finally {
+    freeCapacityPending = false;
+    renderProviders();
+  }
+}
+
 refreshSupabaseOAuthStatus().then(refreshNetlifyOAuthStatus);
