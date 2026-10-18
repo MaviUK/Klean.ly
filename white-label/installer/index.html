@@ -68,8 +68,9 @@
         </section>
         <section class="step-panel" data-view="1" hidden>
           <div class="section-heading"><span class="overline">STEP 02 — INFRASTRUCTURE</span><h1>Owned by the company.</h1><p>Each company uses a completely separate Supabase project and hosting site. The production connector will request permission to create and configure these resources.</p></div>
-          <div class="notice"><strong>Supabase connection security</strong><p>When the permanent connection is enabled, authorising creates an account-bound grant encrypted on the Klean.ly Business server. You can reconnect, check, sign out or disconnect. Until the secure storage is enabled, the original verification-only test remains available. No customer project is installed or changed at this stage.</p></div>
+          <div class="notice"><strong>Secure staging connections</strong><p>Connect your own Supabase account first, then authorise your Netlify account. Both grants are encrypted in the separate Klean.ly Business control plane and can be checked or disconnected. A connection never creates a customer site or database; installations remain disabled.</p></div>
           <div id="supabase-oauth-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <div id="netlify-oauth-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div id="infrastructure-list" class="provider-grid"></div>
         </section>
         <section class="step-panel" data-view="2" hidden>
@@ -90,7 +91,7 @@
             <div><h2>Installation manifest</h2><p>No API keys, passwords or private data are included.</p></div>
             <button type="button" id="download-manifest" class="action-button">Download blueprint ↓</button>
           </div>
-          <div class="notice secondary"><strong>Next development milestone</strong><p>Business-specific membership, Netlify authorisation, automated project and database provisioning, owner invitation and billing. A connected Supabase account and exported blueprint do not mean an installation has been deployed.</p></div>
+          <div class="notice secondary"><strong>Next development milestone</strong><p>Business-specific membership, automated project and database provisioning, owner invitation and billing. A connected Supabase account and exported blueprint do not mean an installation has been deployed.</p></div>
         </section>
         <div class="bottom-actions">
           <button id="previous-step" type="button" class="text-button" disabled>← Previous</button>

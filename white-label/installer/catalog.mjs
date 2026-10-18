@@ -10,7 +10,7 @@ export const providers = Object.freeze([
     id: "netlify", name: "Netlify", category: "Infrastructure",
     required: true, link: "https://app.netlify.com/",
     description: "Company-owned website hosting, custom domain and server functions.",
-    mode: "oauth-planned", status: "Authorisation integration to be implemented",
+    mode: "oauth-integration", status: "Secure OAuth connection available in staging",
     secret: "Deployment credentials stay only in the secure control plane."
   },
   {

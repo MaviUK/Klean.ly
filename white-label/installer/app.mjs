@@ -2,11 +2,13 @@ import { providers, sanitiseSetup, requiredProviderIds } from "./catalog.mjs";
 
 const STORAGE_KEY = "kleanly_business_setup_draft_v1";
 const STEP_COUNT = 4;
+// Netlify OAuth is provided by the separate infrastructure module.
 let step = 0;
 let draft = { name: "", domain: "", logoUrl: "", primaryColor: "#059669", desiredProviders: [...requiredProviderIds] };
 let oauthState = { configured: false, verified: false, connected: false,
   mode: "verification-only", connection: null, organization: null, identity: null,
   csrfToken: null };
+let netlifyState = { configured: false, authenticated: false, connected: false, identity: null, connection: null };
 
 function byId(id) { return document.getElementById(id); }
 function setText(id, value) { byId(id).textContent = value; }
@@ -70,6 +72,16 @@ function renderProvider(provider, required) {
     } else {
       status.textContent = oauthState.verified ? "Test verified" : "Not connected";
       detail.textContent = "This temporary test discards all access and refresh tokens. No Supabase project is created or changed.";
+    }
+  } else if (provider.id === "netlify") {
+    if (netlifyState.connected) {
+      status.textContent = netlifyState.connection?.status === "connected"
+        ? "Connected securely" : "Reconnect needed";
+      detail.textContent = "The Netlify grant is encrypted in the installer control plane. No site has been created.";
+    } else if (!oauthState.connected) {
+      detail.textContent = "Connect Supabase first to unlock Netlify authorisation.";
+    } else {
+      detail.textContent = "Connect your own Netlify account securely to enable company-owned hosting.";
     }
   } else {
     detail.textContent = provider.status + ". " + provider.secret;
@@ -155,6 +167,42 @@ function renderProvider(provider, required) {
       note.className = "provider-note";
       note.textContent = "Disconnect permanently erases this organisation's local credentials and sessions. To revoke Supabase's original consent, also remove Klean.ly Business from your Supabase account.";
       card.append(note);
+    }
+  }
+  if (provider.id === "netlify") {
+    if (netlifyState.connected) {
+      const account = document.createElement("p");
+      account.className = "connection-account";
+      const name = document.createElement("strong");
+      name.textContent = netlifyState.identity?.email || "Netlify account";
+      const sub = document.createElement("span");
+      sub.textContent = "Identity verified by Netlify";
+      account.append(name, sub);
+      card.append(account);
+    }
+    const connect = document.createElement("button");
+    connect.type = "button";
+    connect.className = "action-button provider-oauth";
+    connect.textContent = !oauthState.connected ? "Connect Supabase first"
+      : !netlifyState.configured ? "Authorisation setup pending"
+      : netlifyState.connected ? "Reconnect Netlify account ↗" : "Connect Netlify securely ↗";
+    connect.disabled = !netlifyState.configured || !oauthState.connected;
+    connect.addEventListener("click", () => window.location.assign("/.netlify/functions/netlify-oauth-start"));
+    card.append(connect);
+    if (netlifyState.connected) {
+      const actions = document.createElement("div");
+      actions.className = "connection-actions";
+      for (const [label, action, kind] of [
+        ["Check connection", "check", "primary"], ["Disconnect", "disconnect", "destructive"],
+      ]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "connection-action " + kind;
+        button.textContent = label;
+        button.addEventListener("click", () => performNetlifyConnectionAction(action));
+        actions.append(button);
+      }
+      card.append(actions);
     }
   }
   return card;
@@ -331,6 +379,7 @@ async function performConnectionAction(action) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "The action could not be completed.");
     await refreshSupabaseOAuthStatus();
+    await refreshNetlifyOAuthStatus();
     if (action === "check") {
       const message = data.state === "connected" ? "Supabase is connected and your grant is valid."
         : data.state === "reauthorisation_required" ? "Supabase needs to be re-authorised."
@@ -347,4 +396,86 @@ async function performConnectionAction(action) {
   renderProviders();
 }
 
-refreshSupabaseOAuthStatus();
+
+async function refreshNetlifyOAuthStatus() {
+  const result = new URLSearchParams(window.location.search).get("netlify_result");
+  const messages = {
+    configuration_required: "The Netlify authorisation service is not configured.",
+    signin_required: "Connect Supabase before connecting Netlify.",
+    denied: "Netlify authorisation was cancelled.",
+    invalid_response: "Netlify did not return a valid authorisation code.",
+    expired_or_invalid: "Netlify authorisation expired or did not match. Please try again.",
+    exchange_failed: "Netlify could not finish authorisation. Check the OAuth redirect and credentials.",
+    identity_unavailable: "Netlify could not verify your account. No grant was saved.",
+    account_conflict: "A different Netlify account is linked. Disconnect it before switching.",
+    storage_unavailable: "The secure Netlify grant could not be saved. Please retry.",
+  };
+  try {
+    const response = await fetch("/.netlify/functions/netlify-oauth-status", {
+      credentials: "same-origin", cache: "no-store",
+    });
+    if (!response.ok) throw new Error("Netlify connection unavailable");
+    const data = await response.json();
+    netlifyState = {
+      configured: data.configured === true, authenticated: data.authenticated === true,
+      connected: data.connected === true, identity: data.identity ?? null,
+      connection: data.connection ?? null,
+    };
+    byId("netlify-oauth-result").classList.remove("is-error");
+    if (result === "connected") {
+      setText("netlify-oauth-result", netlifyState.connected
+        ? "Netlify connected securely. No site or deployment has been created."
+        : "Netlify connection was not confirmed. Please retry.");
+      if (netlifyState.connected) goTo(1);
+    } else if (messages[result]) {
+      setText("netlify-oauth-result", messages[result]);
+      byId("netlify-oauth-result").classList.add("is-error");
+      goTo(1);
+    } else if (netlifyState.connected) {
+      setText("netlify-oauth-result", netlifyState.connection?.status === "connected"
+        ? "Netlify account connected. Check its authorisation or disconnect below."
+        : "Netlify needs reauthorisation.");
+    } else {
+      setText("netlify-oauth-result", "");
+    }
+  } catch {
+    setText("netlify-oauth-result", "The Netlify connection service is temporarily unavailable.");
+    byId("netlify-oauth-result").classList.add("is-error");
+  }
+  if (result) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+  renderProviders();
+}
+
+async function performNetlifyConnectionAction(action) {
+  if (!oauthState.connected || !oauthState.csrfToken || !netlifyState.connected) return;
+  if (action === "disconnect" && !window.confirm(
+    "Disconnect Netlify and delete its saved encrypted grant? Supabase will stay connected."
+  )) return;
+  const endpoint = {
+    check: "netlify-connection-check", disconnect: "netlify-connection-disconnect",
+  }[action];
+  if (!endpoint) return;
+  setText("netlify-oauth-result", "Checking the Netlify connection...");
+  try {
+    const response = await fetch("/.netlify/functions/" + endpoint, {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Netlify action failed.");
+    await refreshNetlifyOAuthStatus();
+    if (action === "check") {
+      setText("netlify-oauth-result", data.state === "connected"
+        ? "Netlify is connected and the grant is valid."
+        : data.state === "reauthorisation_required" ? "Netlify needs reauthorisation."
+        : "Netlify could not be verified right now. The saved grant is unchanged.");
+    } else {
+      setText("netlify-oauth-result", "Netlify disconnected. Your Supabase connection was not changed.");
+    }
+  } catch (error) {
+    setText("netlify-oauth-result", error?.message || "Netlify action failed.");
+    byId("netlify-oauth-result").classList.add("is-error");
+  }
+  renderProviders();
+}
+refreshSupabaseOAuthStatus().then(refreshNetlifyOAuthStatus);
