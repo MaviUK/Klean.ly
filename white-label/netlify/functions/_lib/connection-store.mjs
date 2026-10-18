@@ -12,10 +12,11 @@ export async function getPortalDatabase() {
   return getDatabase();
 }
 
-export async function persistAuthorization({ profile, organization, tokens }, db = await getPortalDatabase(), key = vaultKey()) {
+export async function persistAuthorization({ profile, organization, tokens }, db = null, key = vaultKey()) {
   if (!key) throw new Error("Credential encryption key unavailable");
   const session = newPortalSession();
-  const connection = await db.pool.connect();
+  const database = db ?? await getPortalDatabase();
+  const connection = await database.pool.connect();
   try {
     await connection.query("BEGIN");
     await connection.query(
@@ -73,11 +74,12 @@ export async function persistAuthorization({ profile, organization, tokens }, db
   }
 }
 
-export async function currentPortalSession(request, db = await getPortalDatabase()) {
+export async function currentPortalSession(request, db = null) {
   const cookie = readCookie(request.headers.get("cookie"), SESSION_COOKIE);
   const hash = sessionHash(cookie);
   if (!hash) return null;
-  const rows = await db.sql`
+  const database = db ?? await getPortalDatabase();
+  const rows = await database.sql`
     SELECT s.session_hash, s.user_id, s.connection_id, s.csrf_token, s.expires_at,
            c.organization_id, c.organization_slug, c.organization_name,
            c.status AS connection_status, c.access_expires_at, c.connected_at,
@@ -92,9 +94,10 @@ export async function currentPortalSession(request, db = await getPortalDatabase
   return rows[0] ?? null;
 }
 
-export async function forgetPortalSession(current, db = await getPortalDatabase()) {
+export async function forgetPortalSession(current, db = null) {
   if (!current) return;
-  await db.sql`DELETE FROM portal_sessions WHERE session_hash = ${current.session_hash}`;
+  const database = db ?? await getPortalDatabase();
+  await database.sql`DELETE FROM portal_sessions WHERE session_hash = ${current.session_hash}`;
 }
 
 export function portalSessionCookie(session) {
@@ -105,9 +108,10 @@ export function erasePortalSessionCookie() {
   return clearCookie(SESSION_COOKIE);
 }
 
-export async function deletePortalConnection(current, db = await getPortalDatabase()) {
+export async function deletePortalConnection(current, db = null) {
   if (!current) throw new Error("No current portal connection");
-  const connection = await db.pool.connect();
+  const database = db ?? await getPortalDatabase();
+  const connection = await database.pool.connect();
   try {
     await connection.query("BEGIN");
     // All sessions for this connection are invalidated by ON DELETE CASCADE.
