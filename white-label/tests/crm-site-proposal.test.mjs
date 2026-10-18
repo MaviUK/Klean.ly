@@ -203,5 +203,6 @@ test("mobile UI only provides a read-only proposal action",()=>{
   assert.match(html,/id="crm-site-proposal-result"/);
   assert.match(js,/\.netlify\/functions\/crm-site-proposal/);
   assert.match(js,/byId\("review-crm-site"\)\.addEventListener/);
-  assert.doesNotMatch(html,/id="create-one-crm-site"/);
+  assert.match(html,/id="crm-site-create-form" class="pilot-approval" hidden/);
+  assert.match(html,/id="create-one-crm-site" class="action-button" disabled/);
 });

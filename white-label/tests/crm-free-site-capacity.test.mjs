@@ -219,5 +219,6 @@ test("mobile staging UI has one read-only capacity button and no site-create act
   assert.match(html,/id="crm-capacity-result"/);
   assert.match(app,/\.netlify\/functions\/crm-free-site-capacity/);
   assert.match(app,/byId\("review-crm-capacity"\)\.addEventListener/);
-  assert.doesNotMatch(html,/id="create-one-crm-site"/);
+  assert.match(html,/id="crm-site-create-form" class="pilot-approval" hidden/);
+  assert.match(html,/id="create-one-crm-site" class="action-button" disabled/);
 });
