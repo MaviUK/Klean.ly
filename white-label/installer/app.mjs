@@ -11,6 +11,7 @@ let oauthState = { configured: false, verified: false, connected: false,
 let netlifyState = { configured: false, authenticated: false, connected: false, identity: null, connection: null };
 let preflightInProgress = false;
 let installationPreviewPending = false;
+let freeCapacityPending = false;
 
 function byId(id) { return document.getElementById(id); }
 function setText(id, value) { byId(id).textContent = value; }
@@ -217,6 +218,7 @@ function renderProviders() {
   integrations.replaceChildren(...providers.filter((p) => p.category !== "Infrastructure").map((p) => renderProvider(p, p.required)));
   byId("check-provisioning-readiness").disabled = preflightInProgress || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("preview-installation-plan").disabled = installationPreviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("check-free-project-capacity").disabled = freeCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -287,6 +289,7 @@ document.querySelectorAll("[data-step]").forEach((button) => {
 byId("download-manifest").addEventListener("click", downloadManifest);
 byId("check-provisioning-readiness").addEventListener("click", checkProvisioningReadiness);
 byId("preview-installation-plan").addEventListener("click", previewInstallation);
+byId("check-free-project-capacity").addEventListener("click", checkFreeProjectCapacity);
 updatePreview();
 goTo(0);
 
