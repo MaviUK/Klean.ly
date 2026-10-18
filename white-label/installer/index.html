@@ -88,6 +88,11 @@
             <div class="summary-row"><span>Data isolation</span><strong>Independent company database</strong></div>
           </div>
           <div class="export-panel">
+            <div><h2>Check installation readiness</h2><p>Verify both accounts and read the existing Supabase project count before considering any new project. This check creates nothing and cannot authorise billing.</p></div>
+            <button type="button" id="check-provisioning-readiness" class="action-button" disabled>Check readiness</button>
+          </div>
+          <div id="provisioning-readiness-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <div class="export-panel">
             <div><h2>Installation manifest</h2><p>No API keys, passwords or private data are included.</p></div>
             <button type="button" id="download-manifest" class="action-button">Download blueprint ↓</button>
           </div>
