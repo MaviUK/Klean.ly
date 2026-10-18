@@ -54,6 +54,12 @@ export async function persistAuthorization({ profile, organization, tokens }, db
         ciphertext, new Date(tokens.expiresAt),
       ]
     );
+    // Reconnecting rotates the portal login and invalidates all older
+    // sessions for this user/organisation, including stolen session cookies.
+    await connection.query(
+      "DELETE FROM portal_sessions WHERE connection_id = $1 AND user_id = $2",
+      [connectionId, profile.userId]
+    );
     await connection.query(
       `INSERT INTO portal_sessions
        (session_hash, user_id, connection_id, csrf_token, expires_at)
