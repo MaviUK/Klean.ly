@@ -70,3 +70,5 @@
 #pilot-confirm-phrase:focus{outline:2px solid #178760;outline-offset:2px}
 .pilot-approval button:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 @media(max-width:680px){.pilot-approval{padding:17px}.pilot-approval button{width:100%}}
+
+.oauth-feedback.is-warning{background:#fff9eb;border-color:#ecd9ad;color:#735321}
