@@ -5,7 +5,22 @@ import {
 } from "./_lib/supabase-oauth.mjs";
 import {
   permanentMode, validateProviderTokens, providerJson, vaultKey,
+  SupabaseResponseError, SupabaseApiError, SupabaseGrantRejected,
 } from "./_lib/connection-vault.mjs";
+
+// The only diagnostic emitted to logs or the browser is a fixed, non-sensitive
+// category. Never log the provider body, token, OAuth code, state or org IDs.
+function failedVerification(code, cleanup) {
+  console.warn("[Klean.ly Business Supabase OAuth] " + code);
+  return redirectToWizard(code, cleanup);
+}
+
+function lookupFailure(stage, error) {
+  if (error instanceof SupabaseResponseError) return error.code;
+  if (error instanceof SupabaseGrantRejected) return stage + "_forbidden";
+  if (error instanceof SupabaseApiError && error.status === 429) return stage + "_rate_limited";
+  return stage + "_unavailable";
+}
 
 // Callback is feature-gated: until the private portal DB and vault key are
 // configured it preserves the existing, successful verification-only pilot.
@@ -65,15 +80,23 @@ export default async function handler(request) {
     let tokens, profile, organization;
     try {
       tokens = validateProviderTokens(raw);
-      [profile, organization] = await Promise.all([
-        providerJson("/profile", tokens.accessToken),
-        providerJson("/organizations", tokens.accessToken),
-      ]);
     } catch {
-      // Ambiguous/invalid org, missing stable user ID, or provider error.
-      // Discard received tokens, don't open any session or record.
-      return redirectToWizard("identity_unavailable", cleanup);
+      return failedVerification("token_response_invalid", cleanup);
     }
+    // Query concurrently to stay within the Netlify Function time budget.
+    // Promise.allSettled lets us identify exactly which validation failed.
+    const results = await Promise.allSettled([
+      providerJson("/profile", tokens.accessToken),
+      providerJson("/organizations", tokens.accessToken),
+    ]);
+    if (results[0].status === "rejected") {
+      return failedVerification(lookupFailure("profile", results[0].reason), cleanup);
+    }
+    if (results[1].status === "rejected") {
+      return failedVerification(lookupFailure("organisations", results[1].reason), cleanup);
+    }
+    profile = results[0].value;
+    organization = results[1].value;
 
     try {
       const { persistAuthorization, portalSessionCookie } =
