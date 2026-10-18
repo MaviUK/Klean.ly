@@ -75,10 +75,13 @@ test("identity and single-org grant must be provider verified, never browser-sel
   assert.deepEqual(validateOrganizationResponse([{
     id: org.organizationId, name: org.organizationName, slug: org.organizationSlug
   }]), org);
-  assert.throws(() => validateOrganizationResponse([]));
+  assert.throws(() => validateOrganizationResponse([]),
+    (error) => error.code === "organisations_empty");
+  assert.throws(() => validateOrganizationResponse({ data: [] }),
+    (error) => error.code === "organisations_response_invalid");
   assert.throws(() => validateOrganizationResponse([
     { id: "org-a", name: "A" }, { id: "org-b", name: "B" },
-  ]));
+  ]), (error) => error.code === "organisations_multiple");
   assert.throws(() => validateOrganizationResponse([{ name: "Missing ID" }]));
 });
 

@@ -37,3 +37,10 @@
 .connection-action:hover{filter:brightness(.96)}
 .provider-note{color:#6c7775;line-height:1.5;font-size:11px;margin:10px 0 0}
 @media(max-width:560px){.connection-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.connection-action{padding:10px 8px}.connection-account{padding:12px}}
+
+/* Diagnostic errors are not successful connection confirmations. */
+.oauth-feedback.is-error{
+  background:#fff0f0;
+  border-color:#f2bfbf;
+  color:#822d30;
+}

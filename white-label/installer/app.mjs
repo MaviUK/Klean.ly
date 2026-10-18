@@ -244,7 +244,19 @@ async function refreshSupabaseOAuthStatus() {
     expired_or_invalid: "The authorisation session expired or did not match. Try again.",
     invalid_response: "Supabase did not return a valid authorisation code. Try again.",
     exchange_failed: "Supabase could not finish the token exchange. Check the client secret and callback URL.",
-    identity_unavailable: "Supabase could not confirm a single organisation and account owner. Select one organisation during authorisation, then try again.",
+    identity_unavailable: "Supabase identity validation was unsuccessful. No credentials were saved.",
+    token_response_invalid: "Supabase authorised the app, but did not return the expected OAuth credentials. No connection was saved (T1).",
+    profile_identity_invalid: "Supabase returned an account profile without a valid user identifier. No credentials were saved (P1).",
+    profile_forbidden: "Supabase did not permit this OAuth grant to read the account profile. No credentials were saved (P2).",
+    profile_rate_limited: "Supabase temporarily limited account-profile requests. No credentials were saved (P3).",
+    profile_unavailable: "Account-profile verification could not be completed. No credentials were saved (P4).",
+    organisations_response_invalid: "Supabase returned an unrecognised organisation-list format. No credentials were saved (O1).",
+    organisations_empty: "Supabase returned no organisations accessible to this OAuth grant. No credentials were saved (O2).",
+    organisations_multiple: "Supabase returned more than one organisation. The installer will not guess which one to connect (O3).",
+    organisations_id_invalid: "Supabase returned an organisation without a valid identifier. No credentials were saved (O4).",
+    organisations_forbidden: "Supabase did not permit this OAuth grant to read the organisation list. No credentials were saved (O5).",
+    organisations_rate_limited: "Supabase temporarily limited organisation-list requests. No credentials were saved (O6).",
+    organisations_unavailable: "Organisation verification could not be completed. No credentials were saved (O7).",
     storage_unavailable: "The secure portal database could not save this grant. Nothing was connected. Please try later.",
   };
   try {
@@ -260,6 +272,7 @@ async function refreshSupabaseOAuthStatus() {
       organization: data.organization ?? null, identity: data.identity ?? null,
       csrfToken: data.csrfToken ?? null,
     };
+    byId("supabase-oauth-result").classList.remove("is-error");
     if (queryResult === "connected") {
       setText("supabase-oauth-result", oauthState.mode === "permanent" && oauthState.connected
         ? "Supabase connected successfully. Your organisation grant is encrypted and stored only on the secure server. No customer project has been created."
@@ -272,6 +285,7 @@ async function refreshSupabaseOAuthStatus() {
       if (oauthState.verified) goTo(1);
     } else if (messages[queryResult]) {
       setText("supabase-oauth-result", messages[queryResult]);
+      byId("supabase-oauth-result").classList.add("is-error");
       goTo(1);
     } else if (oauthState.connected) {
       setText("supabase-oauth-result", "Supabase account connected. You can check its status, reconnect, sign out, or remove its saved credentials below.");

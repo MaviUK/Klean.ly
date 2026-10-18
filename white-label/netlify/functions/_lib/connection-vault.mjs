@@ -9,6 +9,15 @@ export const SESSION_SECONDS = 7 * 24 * 3600;
 export const MANAGEMENT_BASE = "https://api.supabase.com/v1";
 export const ALLOWED_TOKEN_BYTES = 12000;
 
+// Fail closed but distinguish provider response problems without emitting
+// provider payloads, emails, authorization codes or OAuth tokens.
+export class SupabaseResponseError extends Error {
+  constructor(code) { super("Supabase response could not be verified"); this.name = "SupabaseResponseError"; this.code = code; }
+}
+export class SupabaseApiError extends Error {
+  constructor(status) { super("Supabase Management API returned an unsuccessful status"); this.name = "SupabaseApiError"; this.status = status; }
+}
+
 export function vaultKey(env = environment) {
   const raw = env("KLEANLY_OAUTH_ENCRYPTION_KEY");
   if (typeof raw !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(raw)) return null;
@@ -82,7 +91,7 @@ export function validateProfile(data) {
   // The stable provider user ID is authoritative for portal ownership.
   const userId = data?.gotrue_id ?? data?.id ?? data?.user_id;
   if (typeof userId !== "string" || !/^[\w:@.-]{1,128}$/.test(userId)) {
-    throw new Error("Supabase identity missing a stable user ID");
+    throw new SupabaseResponseError("profile_identity_invalid");
   }
   // Email is display-only and NEVER grants portal or organisation access.
   const suppliedEmail = data?.primary_email ?? data?.email;
@@ -93,14 +102,21 @@ export function validateProfile(data) {
 
 export function validateOrganizationResponse(data) {
   const organizations = Array.isArray(data) ? data : data?.organizations;
-  if (!Array.isArray(organizations) || organizations.length !== 1) {
-    throw new Error("Expected access to exactly one consented Supabase organisation");
+  if (!Array.isArray(organizations)) {
+    throw new SupabaseResponseError("organisations_response_invalid");
+  }
+  if (organizations.length === 0) {
+    throw new SupabaseResponseError("organisations_empty");
+  }
+  if (organizations.length !== 1) {
+    // Never guess which of several organisations a user intended to authorise.
+    throw new SupabaseResponseError("organisations_multiple");
   }
   const organization = organizations[0];
   const id = organization?.id;
   if (typeof id !== "string" || id.length < 1 || id.length > 128 ||
       !/^[\w:-]+$/.test(id)) {
-    throw new Error("No valid Supabase organisation identifier");
+    throw new SupabaseResponseError("organisations_id_invalid");
   }
   const name = typeof organization.name === "string" && organization.name.trim()
     ? organization.name.trim().slice(0,160) : "Supabase organisation";
@@ -120,7 +136,7 @@ export async function providerJson(path, accessToken, fetchFn = fetch) {
     signal: AbortSignal.timeout(15000),
   });
   if ([401, 403].includes(response.status)) throw new SupabaseGrantRejected();
-  if (!response.ok) throw new Error("Supabase temporarily could not verify the account");
+  if (!response.ok) throw new SupabaseApiError(response.status);
   const json = await response.json();
   return path === "/profile" ? validateProfile(json) : validateOrganizationResponse(json);
 }
