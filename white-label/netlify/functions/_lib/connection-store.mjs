@@ -23,6 +23,9 @@ export async function persistAuthorization({ profile, organization, tokens }, db
        ON CONFLICT (user_id) DO UPDATE SET email = excluded.email, updated_at = now()`,
       [profile.userId, profile.email]
     );
+    // Lock the owner's row to serialize concurrent first-time grants for the
+    // same owner+organisation; encryption AAD must use the final row ID.
+    await connection.query("SELECT user_id FROM portal_users WHERE user_id = $1 FOR UPDATE", [profile.userId]);
     const previous = await connection.query(
       `SELECT connection_id FROM portal_connections
        WHERE user_id = $1 AND organization_id = $2 FOR UPDATE`,
@@ -204,7 +207,11 @@ export async function inspectConnectedGrant(
     try {
       organization = await providerJson("/organizations", credentials.accessToken, fetchFn);
     } catch {
-      throw new Error("Could not verify the Supabase organisation. Retry shortly.");
+      // A rotated refresh token has already been UPDATEd in this transaction.
+      // Commit it before reporting a transient verification problem, otherwise
+      // a consumed refresh token could be lost forever on ROLLBACK.
+      await connection.query("COMMIT");
+      return { state: "temporarily_unavailable", cached: false };
     }
     if (organization.organizationId !== row.organization_id) {
       await connection.query(
