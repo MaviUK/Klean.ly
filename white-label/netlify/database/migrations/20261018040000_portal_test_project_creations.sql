@@ -21,7 +21,8 @@ CREATE TABLE portal_test_project_creations (
   submitted_at TIMESTAMPTZ,
   provisioned_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (user_id, organization_id)
+  UNIQUE (user_id, organization_id),
+  UNIQUE (approval_version) -- Exactly one global pilot reservation, across all users and organisations
 );
 CREATE INDEX portal_test_project_creations_status_idx
   ON portal_test_project_creations (status, approved_at DESC);
