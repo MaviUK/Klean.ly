@@ -126,19 +126,61 @@ export function validateOrganizationResponse(data) {
 }
 
 export class SupabaseGrantRejected extends Error {
-  constructor() { super("Supabase authorization was revoked or denied"); this.name = "SupabaseGrantRejected"; }
+  constructor(status) {
+    super("Supabase authorization was revoked or denied");
+    this.name = "SupabaseGrantRejected";
+    this.status = status;
+  }
+}
+
+// OAuth Management API grants do not necessarily allow GET /v1/profile.
+// A sole-member organisation can identify the account holder without
+// trusting an email, user ID or organisation selection from the browser.
+// For teams with several members this proof is ambiguous: fail closed
+// until independent portal login and member verification is implemented.
+export function organizationMembersPath(organization) {
+  const slug = organization?.organizationSlug;
+  if (typeof slug !== "string" || !/^[a-z0-9][a-z0-9_-]{0,127}$/.test(slug)) {
+    throw new SupabaseResponseError("members_slug_unavailable");
+  }
+  return "/organizations/" + slug + "/members";
+}
+
+export function validateSoleOwnerMemberResponse(data) {
+  if (!Array.isArray(data)) throw new SupabaseResponseError("members_response_invalid");
+  if (data.length !== 1) throw new SupabaseResponseError("members_not_single");
+  const member = data[0];
+  const userId = member?.user_id;
+  if (typeof userId !== "string" || !/^[\w:@.-]{1,128}$/.test(userId)) {
+    throw new SupabaseResponseError("members_identity_invalid");
+  }
+  // A single member could theoretically have a custom role; require a
+  // provider-confirmed Owner rather than granting elevated portal rights.
+  const role = typeof member.role_name === "string"
+    ? member.role_name.toLowerCase().replace(/[\s_-]/g, "") : "";
+  if (!["owner", "orgowner", "organizationowner", "organisationowner"].includes(role)) {
+    throw new SupabaseResponseError("members_owner_required");
+  }
+  const email = typeof member.email === "string" && member.email.length <= 254
+    ? member.email : null;
+  return { userId, email };
 }
 
 export async function providerJson(path, accessToken, fetchFn = fetch) {
-  if (!["/profile", "/organizations"].includes(path)) throw new Error("Invalid management path");
+  const isMemberList = /^\/organizations\/[a-z0-9][a-z0-9_-]{0,127}\/members$/.test(path);
+  if (!["/profile", "/organizations"].includes(path) && !isMemberList) {
+    throw new Error("Invalid management path");
+  }
   const response = await fetchFn(MANAGEMENT_BASE + path, {
     headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
     signal: AbortSignal.timeout(15000),
   });
-  if ([401, 403].includes(response.status)) throw new SupabaseGrantRejected();
+  if ([401, 403].includes(response.status)) throw new SupabaseGrantRejected(response.status);
   if (!response.ok) throw new SupabaseApiError(response.status);
   const json = await response.json();
-  return path === "/profile" ? validateProfile(json) : validateOrganizationResponse(json);
+  if (path === "/profile") return validateProfile(json);
+  if (path === "/organizations") return validateOrganizationResponse(json);
+  return validateSoleOwnerMemberResponse(json);
 }
 
 export function newPortalSession(now = Date.now()) {

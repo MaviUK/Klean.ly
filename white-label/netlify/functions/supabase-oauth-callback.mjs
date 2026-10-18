@@ -6,6 +6,7 @@ import {
 import {
   permanentMode, validateProviderTokens, providerJson, vaultKey,
   SupabaseResponseError, SupabaseApiError, SupabaseGrantRejected,
+  organizationMembersPath,
 } from "./_lib/connection-vault.mjs";
 
 // The only diagnostic emitted to logs or the browser is a fixed, non-sensitive
@@ -89,14 +90,28 @@ export default async function handler(request) {
       providerJson("/profile", tokens.accessToken),
       providerJson("/organizations", tokens.accessToken),
     ]);
-    if (results[0].status === "rejected") {
-      return failedVerification(lookupFailure("profile", results[0].reason), cleanup);
-    }
     if (results[1].status === "rejected") {
       return failedVerification(lookupFailure("organisations", results[1].reason), cleanup);
     }
-    profile = results[0].value;
     organization = results[1].value;
+
+    if (results[0].status === "fulfilled") {
+      profile = results[0].value;
+    } else {
+      const profileFailure = results[0].reason;
+      // Management API /profile is not OAuth-scoped. Only a 403 may use the
+      // narrowly permitted organisation-membership fallback. A 401 (revoked
+      // or invalid access token) must never be treated as identity proof.
+      if (!(profileFailure instanceof SupabaseGrantRejected && profileFailure.status === 403)) {
+        return failedVerification(lookupFailure("profile", profileFailure), cleanup);
+      }
+      try {
+        const memberPath = organizationMembersPath(organization);
+        profile = await providerJson(memberPath, tokens.accessToken);
+      } catch (error) {
+        return failedVerification(lookupFailure("members", error), cleanup);
+      }
+    }
 
     try {
       const { persistAuthorization, portalSessionCookie } =
