@@ -13,7 +13,7 @@ One **master source repository** and versioned database blueprint. Each customer
 
 Each deployment is logically and physically separate: no shared customer database or payment account. Support staff cannot access customer secrets without explicitly authorised administration.
 
-## Available now: foundation, not automated sign-up yet
+## Available in the currently deployed staging site: foundation and verification-only OAuth
 
 - Portable static **installer planning wizard** at installer/index.html.
 - The wizard records **only non-secret company branding choices** in browser localStorage. It never asks for API tokens.
@@ -23,9 +23,9 @@ Each deployment is logically and physically separate: no shared customer databas
 - Versioned, dedicated-database-only SQL schema in blueprint/0001_foundation.sql.
 - A guarded **operator-run pilot installer** in provisioner/install.mjs. It can install the schema into an explicitly approved, already-created customer Supabase project via the Management API. Tokens are supplied as secure server/terminal environment variables and are never sent to the browser.
 
-### Not implemented yet
+### Not implemented yet on the deployed staging site
 
-Supabase OAuth callback and encrypted token vault; automatic project creation; Netlify OAuth and deploy; DNS; Google Maps key verification; Resend, Stripe and GoCardless connection and webhooks; Android gateway pairing; billing/licence administration; tenant app and owner invitation; zero-touch updates. Do not publish the wizard as a live installation system before these are implemented and tested.
+A permanent Supabase grant (the new feature branch is reviewed separately); automatic project creation; Netlify OAuth and deploy; DNS; Google Maps key verification; Resend, Stripe and GoCardless connection and webhooks; Android gateway pairing; billing/licence administration; tenant app and owner invitation; zero-touch updates. Do not publish the wizard as a live installation system before these are implemented and tested.
 
 ## Test
 
@@ -93,3 +93,35 @@ Never supply the secret in chat, source code or a browser form. It belongs only 
 The Supabase OAuth API redirects to the callback above. The server verifies signed state and PKCE, exchanges the code with Supabase, and discards all credentials; a signed HttpOnly cookie only confirms the proof for fifteen minutes. The UI always says **Test verified**, never permanently connected. Production onboarding requires verified Klean.ly user identity, customer association, a durable encrypted token vault, revocation, scope checks and explicit billing consent *before* storing or using any company access tokens.
 
 The OAuth app scopes can include project/database write, but **this test never writes to a project**; no SQL or Supabase Management API resource calls occur.
+
+## Permanent Supabase connection — development branch, not enabled on staging yet
+
+Branch: `agent/white-label-supabase-connection-vault`. Do not merge this into the live Klean.ly directory, and do **not** enable permanent credentials until the following prerequisites have been checked.
+
+### What this branch implements
+
+- **Supabase OAuth sign-in + organisation grant** using the existing OAuth callback, PKCE S256 and one-time state cookie. The Management API `GET /v1/profile` verifies the provider account's stable user ID. `GET /v1/organizations` must resolve to **exactly one** consented organisation; otherwise onboarding is rejected without storing tokens.
+- Per-owner, per-organisation encrypted connection vault using AES-256-GCM, a fresh IV for every write, and authenticated encryption associated with the provider user ID, organisation ID and connection row ID. An encryption key is never sent to the browser.
+- One-way SHA-256 of random 256-bit session cookies in a **private control-plane Postgres database**. Seven-day server-side sessions are bound to the provider owner and their specific organisation grant. HttpOnly, Secure, SameSite=Lax, `__Host-` cookies.
+- Origin + server-generated CSRF checks for all `POST` actions. Credentials stay on the server. The UI can check connection status, sign out (keep grant), reconnect via OAuth, or disconnect (delete the local encrypted grant and all its sessions).
+- Provider refresh token rotation under a database row lock to avoid losing single-use refresh tokens. Rejected OAuth grants are marked as requiring reauthorisation; transient provider outages do not erase grants.
+- **No provisioning calls**: no new Supabase projects, no SQL application to customer databases and no customer Netlify sites until separate explicit installation confirmation.
+
+The control-plane DB stores only portal users, provider grants and sessions. It is **not** a shared customer CRM/database, and no directory data or customer business data are copied into it. Two Supabase users consenting to the same organisation remain separate account owners in this pilot.
+
+### Mandatory deployment prerequisites
+
+1. **Check Netlify billing and database availability first.** Netlify Database requires a Credit-based Netlify plan and consumes compute/bandwidth credits while active. This team is currently reported as **Pro**; do not assume it is an eligible credit-based plan or silently change plans. Keep this development branch unmerged until the owner approves any billing implications.
+2. Provision a **new, separate Netlify Database** on the **installer staging site** (NOT the live directory site). On eligible Netlify plans, deploying `@netlify/database` with the committed `netlify/database/migrations/20261018020000_portal_connections.sql` migration can automatically create its database. The migration must be applied and verified before enabling credential persistence. Never edit this migration after it has been applied.
+3. Generate an independent random 32-byte encryption key and save its Base64URL value as a **secret, Functions-only** Netlify environment variable `KLEANLY_OAUTH_ENCRYPTION_KEY` on the installer staging site. **Never** paste or commit it, store it in the browser or share it in chat. Back it up securely: losing/rotating it without a planned decrypt-and-reencrypt migration makes all stored Supabase grants unreadable.
+4. Once the staging database migration and encryption key have been verified, set **Functions-only** `KLEANLY_PERMANENT_OAUTH_ENABLED=true` on the installer staging site and redeploy. Until then the known-working verification-only OAuth flow stays enabled and does **not** persist any credentials.
+5. Verify in a non-production Supabase organisation first, including success, state mismatch, expiry, connection isolation, reauthorisation, concurrent refresh, check, sign out and disconnect. Avoid authorising the live Klean.ly Supabase project for installation.
+6. Before inviting businesses, add the separate business registration/membership records, individual Netlify connection, idempotent provisioning, billing consent, and an owner installation approval screen. A saved Supabase OAuth grant is **not** an installed system.
+
+### Important limitations
+
+- In this pilot, **Supabase OAuth is the portal owner's login proof**. An independent Klean.ly email/password login, team invitations, role delegation, password recovery, and full business-account memberships are planned for the next milestone. Users sign in again through Supabase after their session expires.
+- The **Disconnect** button removes our stored copy and invalidates Klean.ly Business sessions. Supabase's original application grant must also be revoked in the Supabase dashboard if the user wants to revoke it at the provider; we do not rely on Supabase's experimental revoke endpoint.
+- No original provider tokens are exposed in frontend responses, logs, URLs or `localStorage`. Browser `localStorage` holds only the pre-existing, non-secret branding draft.
+- Production usage requires monitoring, backups, scheduled expired-session cleanup, tested encryption-key rotation, org grant review, incident handling, and idempotent deployment flows.
+- The package pins Netlify Database at `2.0.1`; generate and commit an npm lockfile in an environment with npm registry access before enabling deployment. Do not run `npm audit fix --force` automatically.
