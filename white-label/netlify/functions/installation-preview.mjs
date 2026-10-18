@@ -1,6 +1,11 @@
 import { createProvisioningPreflight } from "./provisioning-preflight.mjs";
 import { requireSameOrigin, safeStatusResponse } from "./_lib/connection-vault.mjs";
 import { providers, requiredProviderIds } from "../../installer/catalog.mjs";
+import { currentPortalSession } from "./_lib/connection-store.mjs";
+import {
+  PILOT_PROJECT_NAME, pilotSettings, isPilotTarget, isStagingHost,
+  readPilotRecord, publicPilotRecord,
+} from "./_lib/test-project-pilot.mjs";
 
 // This service deliberately generates a PLAN, never an installation.
 // The only provider access runs through the existing read-only readiness
@@ -86,7 +91,7 @@ export function validateBlueprint(input) {
   };
 }
 
-export function createInstallationPlan(input, readiness, now = new Date()) {
+export function createInstallationPlan(input, readiness, now = new Date(), pilotRecord = null) {
   if (!isObject(readiness) ||
       readiness.readyForCostReview !== true ||
       readiness.supabaseVerified !== true ||
@@ -100,6 +105,13 @@ export function createInstallationPlan(input, readiness, now = new Date()) {
     throw new InstallationPlanError("The infrastructure readiness check is incomplete.");
   }
   const business = validateBlueprint(input);
+  // This is the trusted, server-side reservation record from the separately
+  // approved staging pilot, not an inference from project counts or blueprint.
+  const pilotCreated = pilotRecord?.status === "created" &&
+    pilotRecord?.projectName === PILOT_PROJECT_NAME &&
+    typeof pilotRecord.projectRef === "string" &&
+    /^[a-z0-9]{20}$/i.test(pilotRecord.projectRef) &&
+    readiness.observedProjectCount > 0;
   return {
     planVersion: 1,
     mode: "preview_only",
@@ -116,6 +128,11 @@ export function createInstallationPlan(input, readiness, now = new Date()) {
       dedicatedProjectRequired: true,
       region: "Select before installation",
       freeProjectAvailability: "Not verified",
+      pilotProject: pilotCreated ? {
+        name: PILOT_PROJECT_NAME,
+        ref: pilotRecord.projectRef,
+        status: "created_in_staging",
+      } : null,
     },
     netlify: {
       connectionVerified: true,
@@ -133,7 +150,11 @@ export function createInstallationPlan(input, readiness, now = new Date()) {
     steps: [
       { id: "independent_login", title: "Create a dedicated Klean.ly Business owner login", state: "not_implemented" },
       { id: "billing_review", title: "Verify provider limits, costs and obtain explicit approval", state: "required" },
-      { id: "project", title: "Create a company-owned Supabase project", state: "not_implemented" },
+      { id: "project",
+        title: pilotCreated
+          ? "Create a company-owned Supabase project (staging pilot only)"
+          : "Create a company-owned Supabase project",
+        state: pilotCreated ? "pilot_created" : "not_implemented" },
       { id: "database", title: "Apply the dedicated CRM schema and verify row security", state: "not_implemented" },
       { id: "site", title: "Create a company-owned Netlify site", state: "not_implemented" },
       { id: "secrets", title: "Configure server-only credentials for the new installation", state: "not_implemented" },
@@ -144,12 +165,29 @@ export function createInstallationPlan(input, readiness, now = new Date()) {
     installationEnabled: false,
     readyToInstall: false,
     installationsCreated: false,
-    note: "Planning preview only. No project, website, deployment or billing transaction was created or approved.",
+    note: pilotCreated
+      ? "Preview only. The staging pilot previously created one Supabase project. No CRM schema, site or full customer installation has been created."
+      : "Planning preview only. This check did not create any project, website, deployment or billing transaction.",
   };
+}
+
+// This query only runs after preflight has authenticated the request and
+// checked both provider grants. It reads the allowlisted staging pilot ledger;
+// no provider create action or installation is possible here.
+export async function readStagingPilotProject(request, {
+  getSession = currentPortalSession,
+  getRecord = readPilotRecord,
+  settings = pilotSettings(),
+} = {}) {
+  if (!isStagingHost(request)) return null;
+  const current = await getSession(request);
+  if (!current || !isPilotTarget(current, settings)) return null;
+  return publicPilotRecord(await getRecord(current));
 }
 
 export function createInstallationPreviewHandler({
   checkReadiness = createProvisioningPreflight(),
+  getPilotProject = readStagingPilotProject,
 } = {}) {
   return async function handler(request) {
     if (request.method !== "POST") {
@@ -194,7 +232,8 @@ export function createInstallationPreviewHandler({
         throw new InstallationPlanError("The setup blueprint has an unsupported format.");
       }
       const readiness = await readinessResponse.json();
-      const plan = createInstallationPlan(parsed.blueprint, readiness);
+      const pilotRecord = await getPilotProject(request);
+      const plan = createInstallationPlan(parsed.blueprint, readiness, new Date(), pilotRecord);
       return safeStatusResponse(plan);
     } catch (error) {
       if (error instanceof InstallationPlanError || error instanceof SyntaxError) {

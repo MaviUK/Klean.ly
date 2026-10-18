@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   validateBlueprint, createInstallationPlan, createInstallationPreviewHandler,
+  readStagingPilotProject,
 } from "../netlify/functions/installation-preview.mjs";
 
 const origin = "https://kleanly-business-installer-staging.netlify.app";
@@ -97,6 +98,7 @@ test("builds a reproducible non-executable preview without billing or allocation
 test("the preview handler reuses the secure read-only readiness check and never installs", async () => {
   let checks = 0;
   const handler = createInstallationPreviewHandler({
+    getPilotProject: async () => null,
     checkReadiness: async (r) => {
       checks++;
       assert.equal(r.method, "POST");
@@ -119,6 +121,7 @@ test("the preview handler reuses the secure read-only readiness check and never 
 test("invalid request origin, method and media type are rejected without checking providers", async () => {
   let checks = 0;
   const handler = createInstallationPreviewHandler({
+    getPilotProject: async () => null,
     checkReadiness: async () => { checks++; return Response.json(readiness); },
   });
   assert.equal((await handler(request({ blueprint }, { Origin: "https://attacker.invalid" }))).status, 403);
@@ -130,6 +133,7 @@ test("invalid request origin, method and media type are rejected without checkin
 test("failed session readiness and missing permissions cannot show a plan", async () => {
   for (const status of [401, 403, 409, 503]) {
     const handler = createInstallationPreviewHandler({
+    getPilotProject: async () => null,
       checkReadiness: async () => new Response(
         JSON.stringify({ error: "Do not expose sensitive provider details." }),
         {status, headers: {"Content-Type": "application/json"}}
@@ -146,6 +150,7 @@ test("failed session readiness and missing permissions cannot show a plan", asyn
 
 test("malformed and oversized blueprints do not trigger installation or reflect secrets", async () => {
   const handler = createInstallationPreviewHandler({
+    getPilotProject: async () => null,
     checkReadiness: async () => Response.json(readiness),
   });
   const credentials = "sensitive-user-supplied-private-key";
@@ -169,4 +174,100 @@ test("server fails closed when readiness omits any provider or claims installati
   ]) {
     assert.throws(() => createInstallationPlan(blueprint, {...readiness, ...altered}));
   }
+});
+
+test("records a verified staging pilot without claiming the CRM is installed", () => {
+  const validRecord = {
+    status: "created", projectName: "Kleanly Business Staging CRM Pilot",
+    projectRef: "abcdefghijklmnopqrst",
+  };
+  const current = { ...readiness, observedProjectCount: 2 };
+  const plan = createInstallationPlan(blueprint, current,
+    new Date("2026-10-18T14:00:00Z"), validRecord);
+  assert.equal(plan.steps.find(x => x.id === "project").state, "pilot_created");
+  assert.equal(plan.supabase.pilotProject.ref, validRecord.projectRef);
+  assert.equal(plan.installationsCreated, false);
+  assert.equal(plan.installationEnabled, false);
+  assert.equal(plan.readyToInstall, false);
+  assert.equal(plan.steps.find(x => x.id === "database").state, "not_implemented");
+
+  for (const bad of [null,
+    { ...validRecord, status: "unknown" },
+    { ...validRecord, projectName: "Someone else's project" },
+    { ...validRecord, projectRef: "wrong" },
+  ]) {
+    const other = createInstallationPlan(blueprint, current, new Date(), bad);
+    assert.equal(other.steps.find(x => x.id === "project").state, "not_implemented");
+    assert.equal(other.supabase.pilotProject, null);
+  }
+  const noInventory = createInstallationPlan(blueprint,
+    {...current, observedProjectCount: 0}, new Date(), validRecord);
+  assert.equal(noInventory.supabase.pilotProject, null);
+});
+
+test("a staging pilot record can only be looked up for the allowlisted connected owner", async () => {
+  const owner = {
+    user_id: "test-user", connection_id: "test-grant",
+    organization_id: "test-org", organization_slug: "kleanly-test",
+    connection_status: "connected",
+    email: "kleanlytest@gerball.co.uk",
+    organization_name: "kleanly test database",
+  };
+  const settings = {
+    allowlistConfigured: true,
+    ownerEmail: "kleanlytest@gerball.co.uk",
+    organizationName: "kleanly test database",
+  };
+  let reads = 0;
+  const getRecord = async () => {
+    reads++;
+    return {
+      status: "created",
+      project_name: "Kleanly Business Staging CRM Pilot",
+      project_ref: "abcdefghijklmnopqrst",
+    };
+  };
+  const options = { getSession: async () => owner, getRecord, settings };
+  const found = await readStagingPilotProject(request(), options);
+  assert.equal(found.status, "created");
+  assert.equal(found.projectName, "Kleanly Business Staging CRM Pilot");
+  assert.equal(reads, 1);
+  assert.equal(await readStagingPilotProject(
+    new Request("https://klean.ly/.netlify/functions/installation-preview"),
+    options
+  ), null);
+  assert.equal(await readStagingPilotProject(request(), {
+    ...options,
+    getSession: async () => ({...owner, email: "unrelated@example.com"}),
+  }), null);
+  assert.equal(reads, 1);
+});
+
+test("pilot lookup occurs only after successful secure readiness and valid blueprint", async () => {
+  let pilotReads = 0;
+  const getPilotProject = async () => {
+    pilotReads++;
+    return {
+      status: "created", projectName: "Kleanly Business Staging CRM Pilot",
+      projectRef: "abcdefghijklmnopqrst",
+    };
+  };
+  const handler = createInstallationPreviewHandler({
+    checkReadiness: async () => Response.json({...readiness, observedProjectCount: 2}),
+    getPilotProject,
+  });
+  const response = await handler(request());
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.steps.find(x => x.id === "project").state, "pilot_created");
+  assert.equal(pilotReads, 1);
+  assert.equal(data.installationEnabled, false);
+  assert.equal((await handler(request({blueprint: { ...blueprint, schemaVersion: 999 } }))).status, 400);
+  assert.equal(pilotReads, 1);
+  const notReady = createInstallationPreviewHandler({
+    checkReadiness: async () => new Response(null, {status: 403}),
+    getPilotProject,
+  });
+  assert.equal((await notReady(request())).status, 403);
+  assert.equal(pilotReads, 1);
 });

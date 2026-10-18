@@ -562,14 +562,25 @@ function renderInstallationPreview(plan) {
     " (" + plan.supabase.projectsObserved + " existing project(s)). " +
     "Netlify: connected account verified."
   );
+  const pilot = plan.supabase?.pilotProject;
+  const pilotCreated = pilot?.status === "created_in_staging";
+  if (pilotCreated) {
+    appendInstallationParagraph(output,
+      "Staging pilot project already recorded as created: " + pilot.name +
+      " (" + pilot.ref + "). Full customer installation is not yet implemented."
+    );
+  }
   appendInstallationParagraph(output,
     "Proposed domain: " + (plan.business.domain || "Not yet selected") +
-    ". Database region and availability must be confirmed before installation."
+    (pilotCreated
+      ? ". The staging project used the Europe / EMEA selection; verify its final region before installing the CRM."
+      : ". Database region and availability must be confirmed before installation.")
   );
 
   const list = document.createElement("ol");
   const statusLabels = {
     required: "Approval required before continuing",
+    pilot_created: "Created by separate staging pilot — full installer pending",
     not_implemented: "Not implemented — no action taken",
   };
   for (const step of plan.steps) {
@@ -589,9 +600,12 @@ function renderInstallationPreview(plan) {
     );
   }
   appendInstallationParagraph(output,
-    "Preview only. No Supabase project, Netlify site, deployment, or payment has been created. " +
-    "Automated installation remains disabled until owner login, billing safeguards, " +
-    "customer system packaging, and explicit approval are implemented.",
+    "Read-only preview: this check created no new project, site, deployment or payment. " +
+    (pilotCreated
+      ? "The separately approved staging pilot project already exists. No CRM schema or customer Netlify site has been installed. "
+      : "No Supabase project or Netlify site was installed by this preview. ") +
+    "Full automated installation remains disabled until dedicated owner login, " +
+    "billing safeguards, customer system packaging, and explicit approval are implemented.",
     "installation-warning"
   );
 }
