@@ -28,6 +28,14 @@ jobs:
           node --check white-label/installer/catalog.mjs
           node --check white-label/installer/app.mjs
           node --check white-label/provisioner/install.mjs
+      - name: Install pinned portal dependencies
+        working-directory: white-label
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check private portal functions syntax
+        run: |
+          for script in white-label/netlify/functions/*.mjs white-label/netlify/functions/_lib/*.mjs; do
+            node --check "$script"
+          done
       - name: Run white-label tests
         working-directory: white-label
         run: npm test

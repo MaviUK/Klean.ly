@@ -25,3 +25,15 @@
 .provider-oauth:disabled{opacity:.58;cursor:not-allowed;box-shadow:none}
 .oauth-feedback{padding:15px 18px;background:#eaf7ef;border:1px solid #c5e7d4;color:#215f45;border-radius:12px;margin-bottom:20px;font-size:12px;line-height:1.6}
 .oauth-feedback:empty{display:none}
+
+/* Secure portal connection details and account controls */
+.connection-account{display:flex;flex-direction:column;gap:5px;margin:12px 0 4px;padding:13px 15px;border:1px solid #d9e7e0;background:#f5fbf7;border-radius:12px;overflow-wrap:anywhere}
+.connection-account strong{font-size:14px;color:#123d2a}
+.connection-account span{font-size:12px;color:#527366}
+.connection-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+.connection-action{border:1px solid #ccd6d2;border-radius:10px;padding:11px 13px;font:inherit;font-size:12px;font-weight:700;background:white;color:#243b33;cursor:pointer;min-height:40px}
+.connection-action.primary{background:#ecf9f1;color:#166447;border-color:#bce3cf}
+.connection-action.destructive{border-color:#ecd0d0;color:#a32e37}
+.connection-action:hover{filter:brightness(.96)}
+.provider-note{color:#6c7775;line-height:1.5;font-size:11px;margin:10px 0 0}
+@media(max-width:560px){.connection-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.connection-action{padding:10px 8px}.connection-account{padding:12px}}

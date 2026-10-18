@@ -3,7 +3,7 @@ export const providers = Object.freeze([
     id: "supabase", name: "Supabase", category: "Infrastructure",
     required: true, link: "https://supabase.com/dashboard",
     description: "Company-owned customer database, authentication and private storage.",
-    mode: "oauth-planned", status: "Authorisation integration to be implemented",
+    mode: "oauth-integration", status: "Authorisation supported; permanent credential storage separately feature-gated",
     secret: "Never collect service_role or database credentials in the browser."
   },
   {

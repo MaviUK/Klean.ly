@@ -1,10 +1,15 @@
-import { newFlow, authorizationUrl, cookieHeader, clearCookie, redirectToWizard, oauthConfig, FLOW_COOKIE, VERIFIED_COOKIE, FLOW_SECONDS } from "./_lib/supabase-oauth.mjs";
+import {
+  newFlow, authorizationUrl, cookieHeader, clearCookie, redirectToWizard, oauthConfig,
+  FLOW_COOKIE, VERIFIED_COOKIE, FLOW_SECONDS,
+} from "./_lib/supabase-oauth.mjs";
+import { permanentMode } from "./_lib/connection-vault.mjs";
 
-// Starts a browser-only authorisation *test*. No application tokens are stored.
 export default async function handler(request) {
   if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
   const { ready, clientId } = oauthConfig();
-  if (!ready) return redirectToWizard("configuration_required");
+  if (!ready || permanentMode() === "configuration-required") {
+    return redirectToWizard("configuration_required");
+  }
   const flow = newFlow();
   const headers = new Headers({
     Location: authorizationUrl(clientId, flow),
@@ -16,3 +21,6 @@ export default async function handler(request) {
   headers.append("Set-Cookie", clearCookie(VERIFIED_COOKIE));
   return new Response(null, { status: 302, headers });
 }
+export const config = {
+  rateLimit: { action: "rate_limit", aggregateBy: "ip", windowSize: 60, windowLimit: 30 },
+};
