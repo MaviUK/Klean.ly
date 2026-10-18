@@ -158,7 +158,7 @@ export function validateSoleOwnerMemberResponse(data) {
   // provider-confirmed Owner rather than granting elevated portal rights.
   const role = typeof member.role_name === "string"
     ? member.role_name.toLowerCase().replace(/[\s_-]/g, "") : "";
-  if (!["owner", "organizationowner", "organisationowner"].includes(role)) {
+  if (!["owner", "orgowner", "organizationowner", "organisationowner"].includes(role)) {
     throw new SupabaseResponseError("members_owner_required");
   }
   const email = typeof member.email === "string" && member.email.length <= 254
