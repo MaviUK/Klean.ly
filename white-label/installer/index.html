@@ -159,6 +159,29 @@
           </div>
           <div id="crm-capacity-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div class="export-panel">
+            <div><h2>Prepare one CRM website</h2><p>Review the separate test Netlify team's Free Plan and the one-site safety lock before installation. This is read-only and creates nothing.</p></div>
+            <button type="button" id="review-crm-site-create" class="action-button" disabled>Review website creation</button>
+          </div>
+          <div id="crm-site-create-proposal-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <form id="crm-site-create-form" class="pilot-approval" hidden>
+            <h2>Create ONE real CRM website</h2>
+            <p>This creates one EMPTY Netlify website at kleanly-business-crm-pilot.netlify.app in the separately connected kleanlytest Free Plan team. No paid add-ons, custom domain, CRM app, owner login, or invitation will be created.</p>
+            <label class="pilot-approval-consent" for="crm-site-accept-credits">
+              <input id="crm-site-accept-credits" type="checkbox" />
+              <span>I understand Free Plan credits may be consumed and that the website may pause if credits run out.</span>
+            </label>
+            <label class="pilot-approval-consent" for="crm-site-accept-one">
+              <input id="crm-site-accept-one" type="checkbox" />
+              <span>I authorise ONE empty test website. If the outcome is uncertain, there will be no automatic retry.</span>
+            </label>
+            <label class="pilot-confirmation-label" for="crm-site-confirm-phrase">
+              To approve, type <strong id="crm-site-confirm-display">CREATE ONE CRM WEBSITE</strong>
+            </label>
+            <input type="text" id="crm-site-confirm-phrase" autocomplete="off" spellcheck="false" placeholder="Type the exact phrase" />
+            <button type="submit" id="create-one-crm-site" class="action-button" disabled>Create ONE CRM website</button>
+          </form>
+          <div id="crm-site-create-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <div class="export-panel">
             <div><h2>Preview automatic installation</h2><p>See the proposed steps for this company using your securely connected accounts. This is a read-only preview: it cannot create projects or sites, deploy code, or approve charges.</p></div>
             <button type="button" id="preview-installation-plan" class="action-button" disabled>Preview installation</button>
           </div>

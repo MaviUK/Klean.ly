@@ -21,6 +21,9 @@ let crmSchemaInstallPending = false;
 let ownerReadinessPending = false;
 let crmSiteProposalPending = false;
 let crmSiteCapacityPending = false;
+let crmSiteApprovalPending = false;
+let crmSiteCreationPending = false;
+let crmSiteApproval = null;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
 
@@ -237,6 +240,7 @@ function renderProviders() {
   byId("check-owner-readiness").disabled = ownerReadinessPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-site").disabled = crmSiteProposalPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-capacity").disabled = crmSiteCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-site-create").disabled = crmSiteApprovalPending || crmSiteCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -315,6 +319,11 @@ byId("review-crm-installation").addEventListener("click", reviewCrmSchemaInstall
 byId("check-owner-readiness").addEventListener("click", checkOwnerLoginReadiness);
 byId("review-crm-site").addEventListener("click", reviewCrmSiteProposal);
 byId("review-crm-capacity").addEventListener("click", reviewCrmSiteCapacity);
+byId("review-crm-site-create").addEventListener("click", reviewCrmSiteCreation);
+byId("crm-site-confirm-phrase").addEventListener("input", updateCrmSiteCreationState);
+byId("crm-site-accept-credits").addEventListener("change", updateCrmSiteCreationState);
+byId("crm-site-accept-one").addEventListener("change", updateCrmSiteCreationState);
+byId("crm-site-create-form").addEventListener("submit", createOneCrmSite);
 byId("crm-schema-confirm-phrase").addEventListener("input", updateCrmSchemaInstallState);
 byId("crm-schema-accept-changes").addEventListener("change", updateCrmSchemaInstallState);
 byId("crm-schema-install-approval").addEventListener("submit", installOneCrmSchema);
@@ -1086,6 +1095,147 @@ async function reviewCrmSiteCapacity() {
       " No website was created.";
   } finally {
     crmSiteCapacityPending = false;
+    renderProviders();
+  }
+}
+
+function updateCrmSiteCreationState() {
+  byId("create-one-crm-site").disabled = !(
+    crmSiteApproval?.creationUnlocked === true &&
+    crmSiteApproval.existingAttempt === null &&
+    !crmSiteCreationPending &&
+    byId("crm-site-accept-credits").checked &&
+    byId("crm-site-accept-one").checked &&
+    byId("crm-site-confirm-phrase").value === crmSiteApproval.confirmationPhrase
+  );
+}
+
+function resetCrmSiteCreationForm() {
+  crmSiteApproval = null;
+  byId("crm-site-create-form").hidden = true;
+  byId("crm-site-accept-credits").checked = false;
+  byId("crm-site-accept-one").checked = false;
+  byId("crm-site-confirm-phrase").value = "";
+  updateCrmSiteCreationState();
+}
+
+async function reviewCrmSiteCreation() {
+  if (crmSiteApprovalPending || crmSiteCreationPending ||
+      !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken) return;
+  crmSiteApprovalPending = true;
+  resetCrmSiteCreationForm();
+  renderProviders();
+  const output = byId("crm-site-create-proposal-result");
+  output.classList.remove("is-error");
+  output.classList.remove("is-warning");
+  output.textContent = "Rechecking Netlify Free Plan and the permanent one-site safety lock...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-site-approval", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "X-CSRF-Token": oauthState.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Site creation review unavailable.");
+    if (data.mode !== "staging_one_crm_site_pilot" ||
+        data.proposedSiteUrl !== "https://kleanly-business-crm-pilot.netlify.app" ||
+        typeof data.creationUnlocked !== "boolean" ||
+        data.creationLocked === data.creationUnlocked ||
+        data.writeAttempted !== false) {
+      throw new Error("Unexpected website approval response.");
+    }
+    if (data.existingAttempt) {
+      output.classList.add("is-warning");
+      output.textContent = "A prior site creation attempt is recorded (status: " +
+        data.existingAttempt.status + "). " +
+        (data.siteCreated ? "A site has been recorded as created." :
+          "The result needs manual review in Netlify.") +
+        " No automatic retries are allowed.";
+    } else if (!data.creationUnlocked) {
+      output.classList.add("is-warning");
+      output.textContent = "The verified test Free Plan team appears eligible. " +
+        "REAL CRM WEBSITE CREATION IS LOCKED pending your separate approval " +
+        "to enable the one-site pilot. No site, deployment, or login was created.";
+    } else {
+      if (data.confirmationPhrase !== "CREATE ONE CRM WEBSITE" ||
+          data.needsFinalConfirmation !== true ||
+          data.confirmedFreePlan !== true ||
+          data.noPaidAddonsRequested !== true ||
+          data.siteIsEmptyUntilDeployment !== true ||
+          data.siteCreated !== false ||
+          data.deployed !== false || data.invitationSent !== false) {
+        throw new Error("Unexpected final website confirmation settings.");
+      }
+      crmSiteApproval = data;
+      output.textContent = "The one-site pilot is unlocked. Approve one empty website " +
+        "in the Free Plan test team, acknowledge credit usage and type the phrase below.";
+      byId("crm-site-confirm-display").textContent = data.confirmationPhrase;
+      byId("crm-site-create-form").hidden = false;
+    }
+  } catch(error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Website review unavailable.") +
+      " No site was created.";
+  } finally {
+    crmSiteApprovalPending = false;
+    updateCrmSiteCreationState();
+    renderProviders();
+  }
+}
+
+async function createOneCrmSite(event) {
+  event.preventDefault();
+  if (crmSiteCreationPending || crmSiteApproval?.creationUnlocked !== true ||
+      crmSiteApproval?.existingAttempt !== null ||
+      !byId("crm-site-accept-credits").checked ||
+      !byId("crm-site-accept-one").checked ||
+      byId("crm-site-confirm-phrase").value !== crmSiteApproval.confirmationPhrase ||
+      !oauthState.csrfToken) return;
+  if (!window.confirm(
+    "FINAL CONFIRMATION: Create ONE real but EMPTY website " +
+    "kleanly-business-crm-pilot.netlify.app in the kleanlytest Free Plan team? " +
+    "It may use Free Plan credits. No login, paid add-ons or CRM deployment will be created."
+  )) return;
+  crmSiteCreationPending = true;
+  updateCrmSiteCreationState();
+  renderProviders();
+  const output = byId("crm-site-create-result");
+  output.classList.remove("is-error");
+  output.textContent = "Sending ONE Netlify website creation request. Do not refresh or retry...";
+  try {
+    const response = await fetch("/.netlify/functions/crm-site-create", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": oauthState.csrfToken },
+      body: JSON.stringify({
+        confirmation: crmSiteApproval.confirmationPhrase,
+        acknowledgeFreeCredits: true,
+        acknowledgeSingleEmptySite: true,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(
+      (data.error || "Netlify could not confirm creation.") + " Do NOT retry."
+    );
+    if (data.mode !== "staging_one_crm_site_pilot" ||
+        data.state !== "crm_empty_site_created" ||
+        data.siteCreated !== true ||
+        data.siteName !== "kleanly-business-crm-pilot" ||
+        data.siteUrl !== "https://kleanly-business-crm-pilot.netlify.app" ||
+        data.teamSlug !== "kleanlytest" ||
+        typeof data.siteId !== "string" ||
+        data.deployed !== false || data.ownerCreated !== false ||
+        data.invitationSent !== false) {
+      throw new Error("Unexpected website creation result. Do NOT retry.");
+    }
+    output.textContent = "One empty test CRM website created and verified: " +
+      data.siteUrl + ". Site ID: " + data.siteId +
+      ". The CRM app and owner login are not installed yet.";
+  } catch(error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Website outcome unknown.") +
+      " Do not send another request until the Netlify test account is checked.";
+  } finally {
+    crmSiteCreationPending = false;
+    resetCrmSiteCreationForm();
     renderProviders();
   }
 }

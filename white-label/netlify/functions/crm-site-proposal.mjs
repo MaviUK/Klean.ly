@@ -125,7 +125,7 @@ export async function loadVerifiedNetlifyPilotGrant(current, {
   if (profile?.netlifyUserId !== record.netlify_user_id) {
     throw new Error("netlify_identity_mismatch");
   }
-  return { accessToken, netlifyAccountEmail: profile.email };
+  return { accessToken, netlifyAccountEmail: profile.email, netlifyUserId: profile.netlifyUserId };
 }
 
 function failure(message, status = 409) {
