@@ -119,6 +119,7 @@ function renderProvider(provider, required) {
         ? [...new Set([...draft.desiredProviders, provider.id])]
         : draft.desiredProviders.filter((id) => id !== provider.id);
       persistDraft();
+      clearInstallationPreview();
     });
     label.append(check, document.createTextNode("Include"));
     bottom.append(label);
@@ -274,6 +275,7 @@ for (const [key, id] of Object.entries(initialInputs)) {
     setText("identity-error", "");
     persistDraft();
     updatePreview();
+    clearInstallationPreview();
   });
 }
 identityForm.addEventListener("submit", (event) => { event.preventDefault(); goTo(1); });
@@ -284,6 +286,7 @@ document.querySelectorAll("[data-step]").forEach((button) => {
 });
 byId("download-manifest").addEventListener("click", downloadManifest);
 byId("check-provisioning-readiness").addEventListener("click", checkProvisioningReadiness);
+byId("preview-installation-plan").addEventListener("click", previewInstallation);
 updatePreview();
 goTo(0);
 
@@ -511,6 +514,113 @@ async function checkProvisioningReadiness() {
       " No project or website was created.";
   } finally {
     preflightInProgress = false;
+    renderProviders();
+  }
+}
+
+
+function clearInstallationPreview() {
+  const output = byId("installation-plan-result");
+  output.replaceChildren();
+  output.hidden = true;
+  output.classList.remove("is-error");
+}
+
+function appendInstallationParagraph(parent, value, className = "") {
+  const p = document.createElement("p");
+  if (className) p.className = className;
+  p.textContent = value;
+  parent.append(p);
+}
+
+function renderInstallationPreview(plan) {
+  if (plan?.mode !== "preview_only" || plan.installationEnabled !== false ||
+      plan.installationsCreated !== false || !Array.isArray(plan.steps)) {
+    throw new Error("The server did not return a safe installation preview.");
+  }
+  const output = byId("installation-plan-result");
+  output.replaceChildren();
+  output.hidden = false;
+  output.classList.remove("is-error");
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Installation plan for " + plan.business.name;
+  output.append(heading);
+  appendInstallationParagraph(output,
+    "Supabase: " + plan.supabase.organization +
+    " (" + plan.supabase.projectsObserved + " existing project(s)). " +
+    "Netlify: connected account verified."
+  );
+  appendInstallationParagraph(output,
+    "Proposed domain: " + (plan.business.domain || "Not yet selected") +
+    ". Database region and availability must be confirmed before installation."
+  );
+
+  const list = document.createElement("ol");
+  const statusLabels = {
+    required: "Approval required before continuing",
+    not_implemented: "Not implemented — no action taken",
+  };
+  for (const step of plan.steps) {
+    const item = document.createElement("li");
+    item.textContent = step.title;
+    const status = document.createElement("span");
+    status.textContent = statusLabels[step.state] || "Not started";
+    item.append(status);
+    list.append(item);
+  }
+  output.append(list);
+
+  const futureProviders = plan.integrations.filter((item) => item.state === "setup_required");
+  if (futureProviders.length) {
+    appendInstallationParagraph(output,
+      "Still to configure: " + futureProviders.map((item) => item.name).join(", ") + "."
+    );
+  }
+  appendInstallationParagraph(output,
+    "Preview only. No Supabase project, Netlify site, deployment, or payment has been created. " +
+    "Automated installation remains disabled until owner login, billing safeguards, " +
+    "customer system packaging, and explicit approval are implemented.",
+    "installation-warning"
+  );
+}
+
+async function previewInstallation() {
+  if (installationPreviewPending || !oauthState.connected || !netlifyState.connected ||
+      !oauthState.csrfToken) return;
+  const output = byId("installation-plan-result");
+  output.hidden = false;
+  output.classList.remove("is-error");
+  output.replaceChildren();
+  appendInstallationParagraph(output, "Preparing your read-only installation preview...");
+  installationPreviewPending = true;
+  renderProviders();
+
+  try {
+    const blueprint = sanitiseSetup(draft);
+    const response = await fetch("/.netlify/functions/installation-preview", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": oauthState.csrfToken,
+      },
+      body: JSON.stringify({ blueprint }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "Installation preview is temporarily unavailable.");
+    }
+    renderInstallationPreview(data);
+  } catch (error) {
+    output.hidden = false;
+    output.classList.add("is-error");
+    output.replaceChildren();
+    appendInstallationParagraph(output,
+      (error?.message || "Unable to preview installation.") +
+      " Nothing was created or charged."
+    );
+  } finally {
+    installationPreviewPending = false;
     renderProviders();
   }
 }
