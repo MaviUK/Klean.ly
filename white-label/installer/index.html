@@ -187,6 +187,11 @@
           </div>
           <div id="crm-deployment-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div class="export-panel">
+            <div><h2>Review CRM deployment package</h2><p>Check the real CRM source files, owner login callback, security headers, and package fingerprint. This is a code-only review: no API keys, accounts, email or website deployment is involved.</p></div>
+            <button type="button" id="review-crm-package" class="action-button">Review CRM package</button>
+          </div>
+          <div id="crm-package-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          <div class="export-panel">
             <div><h2>Prepare secure owner login</h2><p>Review the selected test business owner email, dedicated CRM login URL and Supabase Auth redirect settings. This checks configuration only: no invitation will be sent, no account created and no database or website changed.</p></div>
             <button type="button" id="review-owner-auth-setup" class="action-button" disabled>Review owner login setup</button>
           </div>

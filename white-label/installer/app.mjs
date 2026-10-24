@@ -325,6 +325,7 @@ byId("review-crm-site").addEventListener("click", reviewCrmSiteProposal);
 byId("review-crm-capacity").addEventListener("click", reviewCrmSiteCapacity);
 byId("review-crm-site-create").addEventListener("click", reviewCrmSiteCreation);
 byId("review-crm-deployment").addEventListener("click", reviewCrmDeploymentReadiness);
+byId("review-crm-package").addEventListener("click", reviewCrmPackageSource);
 byId("review-owner-auth-setup").addEventListener("click", reviewOwnerAuthSetup);
 byId("crm-site-confirm-phrase").addEventListener("input", updateCrmSiteCreationState);
 byId("crm-site-accept-credits").addEventListener("change", updateCrmSiteCreationState);
@@ -1243,6 +1244,48 @@ async function createOneCrmSite(event) {
     crmSiteCreationPending = false;
     resetCrmSiteCreationForm();
     renderProviders();
+  }
+}
+
+async function reviewCrmPackageSource() {
+  const button = byId("review-crm-package");
+  if (button.disabled) return;
+  const output = byId("crm-package-result");
+  button.disabled = true;
+  output.classList.remove("is-error", "is-warning");
+  output.textContent = "Checking the CRM source package and release safety locks...";
+  try {
+    // Static, build-generated audit only. No OAuth token, Auth user, private
+    // database key or Netlify/Supabase write endpoint is ever called here.
+    const response = await fetch("/crm-release-audit.json", {
+      method: "GET", credentials: "same-origin", cache: "no-store",
+    });
+    if (!response.ok) throw new Error("CRM source audit is not available");
+    const review = await response.json();
+    if (review.audit !== "source-only" ||
+        review.sourceValidated !== true ||
+        review.noPublishableKeyBundled !== true ||
+        review.noSecretKeysBundled !== true ||
+        review.siteId !== "c4632a28-a4b0-4e77-a54e-7a8bf05a8882" ||
+        review.siteUrl !== "https://kleanly-business-crm-pilot.netlify.app" ||
+        review.projectUrl !== "https://nlupgjwcyivepzgqffss.supabase.co" ||
+        review.filesChecked !== 9 ||
+        !/^[0-9a-f]{64}$/.test(review.sourceHash || "") ||
+        review.websiteDeployed !== false ||
+        review.ownerInvitationSent !== false ||
+        review.readyForSeparateDeploymentApproval !== false) {
+      throw new Error("The CRM package did not pass its staging safety checks");
+    }
+    output.textContent = "CRM source package checked: nine approved files, exact test website and Supabase project, login callback and security headers validated. " +
+      "Fingerprint: " + review.sourceHash.slice(0, 16) + "… " +
+      "The package contains NO real API keys. The CRM is NOT deployed; owner invitations and database changes remain disabled. " +
+      "Provider access and a separate deployment approval are still required.";
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Unable to verify the source package.") +
+      " No CRM website deployment or owner invitation was attempted.";
+  } finally {
+    button.disabled = false;
   }
 }
 
