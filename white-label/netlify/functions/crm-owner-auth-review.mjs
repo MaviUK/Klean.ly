@@ -2,8 +2,9 @@ import {
   constantTimeEqual, permanentMode, requireSameOrigin, safeStatusResponse,
 } from "./_lib/connection-vault.mjs";
 import { currentPortalSession } from "./_lib/connection-store.mjs";
+import { loadFreshPilotGrant } from "./_lib/fresh-pilot-grant.mjs";
 import {
-  isPilotTarget, isStagingHost, pilotSettings, loadVerifiedGrant,
+  isPilotTarget, isStagingHost, pilotSettings,
   REF_PATTERN, PILOT_PROJECT_NAME,
 } from "./_lib/test-project-pilot.mjs";
 import { CRM_SITE_OWNER_EMAIL } from "./_lib/crm-site-pilot.mjs";
@@ -97,7 +98,7 @@ export function createOwnerAuthSetupReviewHandler({
   getSettings = pilotSettings,
   reviewOwner = createOwnerLoginReadinessHandler(),
   reviewDeployment = createCrmDeploymentReadinessHandler(),
-  getGrant = loadVerifiedGrant,
+  getGrant = loadFreshPilotGrant,
   checkAuthConfig = inspectOwnerAuthConfig,
 } = {}) {
   return async function handler(request) {

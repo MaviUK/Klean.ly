@@ -2,9 +2,10 @@ import {
   constantTimeEqual, permanentMode, requireSameOrigin, safeStatusResponse,
 } from "./_lib/connection-vault.mjs";
 import { currentPortalSession } from "./_lib/connection-store.mjs";
+import { loadFreshPilotGrant } from "./_lib/fresh-pilot-grant.mjs";
 import {
   isStagingHost, isPilotTarget, pilotSettings, PILOT_PROJECT_NAME,
-  readPilotRecord, loadVerifiedGrant, REF_PATTERN,
+  readPilotRecord, REF_PATTERN,
 } from "./_lib/test-project-pilot.mjs";
 import {
   readCrmSchemaAttempt,
@@ -106,7 +107,7 @@ export function createOwnerLoginReadinessHandler({
   getSettings = pilotSettings,
   getProjectRecord = readPilotRecord,
   getSchemaAttempt = readCrmSchemaAttempt,
-  getGrant = loadVerifiedGrant,
+  getGrant = loadFreshPilotGrant,
   getProject = fetchPilotProject,
   checkTables = inspectOwnerTables,
 } = {}) {
