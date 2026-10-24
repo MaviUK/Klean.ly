@@ -26,6 +26,7 @@ let crmSiteCreationPending = false;
 let crmDeploymentReviewPending = false;
 let ownerAuthReviewPending = false;
 let crmPublicKeyPending = false;
+let crmAccessReviewPending = false;
 let crmSiteApproval = null;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
@@ -245,6 +246,8 @@ function renderProviders() {
   byId("review-crm-capacity").disabled = crmSiteCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-site-create").disabled = crmSiteApprovalPending || crmSiteCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-deployment").disabled = crmDeploymentReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-access").disabled = crmAccessReviewPending ||
+    !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-public-key").disabled = crmPublicKeyPending ||
     !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken ||
     !/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(byId("crm-public-key").value);
@@ -332,6 +335,7 @@ byId("review-crm-deployment").addEventListener("click", reviewCrmDeploymentReadi
 byId("review-crm-package").addEventListener("click", reviewCrmPackageSource);
 byId("crm-public-key").addEventListener("input", renderProviders);
 byId("crm-public-key-form").addEventListener("submit", reviewCrmPublicKey);
+byId("review-crm-access").addEventListener("click", reviewCrmAccess);
 byId("review-owner-auth-setup").addEventListener("click", reviewOwnerAuthSetup);
 byId("crm-site-confirm-phrase").addEventListener("input", updateCrmSiteCreationState);
 byId("crm-site-accept-credits").addEventListener("change", updateCrmSiteCreationState);
@@ -1253,6 +1257,64 @@ async function createOneCrmSite(event) {
   }
 }
 
+// The API returns only these pre-auth, safe messages; never reflect arbitrary
+// provider responses, API keys or stack traces in the staging UI.
+function crmSafeAccessError(message) {
+  const messages = Object.freeze({
+    "Staging only": "The request did not originate from the correct staging website.",
+    "Secure staging portal unavailable": "The secure staging portal is temporarily unavailable.",
+    "Secure session unavailable": "The staging session could not be checked.",
+    "Reconnect your test account": "Your test Supabase connection has expired. Reconnect the test account.",
+    "Session verification failed": "The staging session security token did not match. Refresh the page and recheck your connection.",
+    "Only the approved test account can check its key": "The staging Supabase session is not the approved Klean.ly test account.",
+    "Expected JSON request": "The browser sent an unexpected request format.",
+    "Test installation record could not be verified": "The dedicated test CRM installation records could not be read.",
+    "This request does not match the separate test CRM": "The test CRM project/site records do not match the approved pilot. This is NOT evidence that the key is incorrect.",
+    "Enter only a Supabase publishable key": "Enter the sb_publishable_ key from the TEST Supabase project.",
+    "The dedicated test Supabase could not verify this publishable key": "Supabase did not validate the key. Check the TEST project's API Keys page.",
+  });
+  return messages[message] || "The test CRM access check was unsuccessful. No credentials were stored.";
+}
+async function reviewCrmAccess() {
+  if (crmAccessReviewPending || !oauthState.connected ||
+      !netlifyState.connected || !oauthState.csrfToken) return;
+  crmAccessReviewPending = true;
+  renderProviders();
+  const output = byId("crm-access-result");
+  output.classList.remove("is-error", "is-warning");
+  output.textContent = "Checking your existing staging session and pilot records…";
+  try {
+    const response = await fetch("/.netlify/functions/crm-publishable-key-review", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": oauthState.csrfToken,
+      },
+      body: JSON.stringify({ action: "preflight" }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(crmSafeAccessError(result?.error));
+    if (result?.mode !== "read_only_crm_publishable_key_review" ||
+        result?.state !== "staging_access_verified" ||
+        result?.pilotAccessVerified !== true ||
+        result?.publishableKeyVerified !== false ||
+        result?.keyPersisted !== false ||
+        result?.websiteDeployed !== false ||
+        result?.ownerCreated !== false ||
+        result?.emailSent !== false) {
+      throw new Error("The staging access response was incomplete.");
+    }
+    output.textContent = "Staging access verified. The test CRM site/database records match. You may now verify the TEST Supabase publishable key. No changes were made.";
+  } catch (error) {
+    output.classList.add("is-error");
+    output.textContent = (error?.message || "Staging access could not be checked.") +
+      " No public key is needed for this check. No website or database was modified.";
+  } finally {
+    crmAccessReviewPending = false;
+    renderProviders();
+  }
+}
+
 async function reviewCrmPublicKey(event) {
   event.preventDefault();
   if (crmPublicKeyPending || !oauthState.connected || !netlifyState.connected ||
@@ -1275,14 +1337,15 @@ async function reviewCrmPublicKey(event) {
       body: JSON.stringify({ publishableKey: key }),
     });
     const result = await response.json();
-    if (!response.ok || result.mode !== "read_only_crm_publishable_key_review" ||
+    if (!response.ok) throw new Error(crmSafeAccessError(result?.error));
+    if (result.mode !== "read_only_crm_publishable_key_review" ||
         result.publishableKeyVerified !== true ||
         result.keyPersisted !== false ||
         result.websiteDeployed !== false ||
         result.ownerCreated !== false ||
         result.emailSent !== false ||
         !/^[a-f0-9]{12}$/.test(result.fingerprint || "")) {
-      throw new Error("This key could not be validated against the test project.");
+      throw new Error("The verification response was incomplete. Your key was not saved.");
     }
     if (result.publicSignupsDisabled !== true) {
       output.classList.add("is-warning");
@@ -1293,11 +1356,10 @@ async function reviewCrmPublicKey(event) {
     output.textContent = "The test Supabase accepted your publishable key and public sign-ups are disabled. " +
       "Fingerprint: " + result.fingerprint + ". This key was NOT saved. " +
       "A separately approved deployment is still required; you may need to enter the publishable key again then.";
-  } catch {
+  } catch (error) {
     output.classList.add("is-error");
-    output.textContent = "Could not verify this key for the dedicated test Supabase project. " +
-      "Check that you copied a publishable key from the TEST project, not a secret or the main Klean.ly project. " +
-      "Nothing was saved or deployed.";
+    output.textContent = (error?.message || "The key check was unavailable.") +
+      " Nothing was saved or deployed. If this is a staging access issue, use Check staging access above before retrying your key.";
   } finally {
     byId("crm-public-key").value = "";
     crmPublicKeyPending = false;

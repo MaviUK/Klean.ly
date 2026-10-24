@@ -197,6 +197,10 @@
               <p>Use only the <strong>publishable key</strong> from the separate Klean.ly Business test Supabase project's Settings → API Keys. It starts with <code>sb_publishable_</code>. The key is checked against that test project and discarded immediately: nothing is saved or deployed. NEVER use a secret or service-role key.</p>
               <p><a href="https://supabase.com/dashboard/project/nlupgjwcyivepzgqffss/settings/api-keys" target="_blank" rel="noopener noreferrer">Open test Supabase API Keys ↗</a></p>
             </div>
+            <div>
+              <button type="button" id="review-crm-access" class="action-button" disabled>Check staging access (no key needed)</button>
+              <div id="crm-access-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+            </div>
             <form id="crm-public-key-form" autocomplete="off">
               <label for="crm-public-key">Test Supabase publishable key</label>
               <input id="crm-public-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="220" placeholder="sb_publishable_..." />

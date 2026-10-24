@@ -112,9 +112,23 @@ export function createCrmPublishableKeyReviewHandler({
       if(raw.length>512)throw new Error("request_too_large");
       const body=JSON.parse(raw);
       if(!body||typeof body!=="object"||Array.isArray(body)||
-         Object.keys(body).length!==1||!Object.hasOwn(body,"publishableKey")){
+         Object.keys(body).length!==1){
         throw new Error("unexpected_input");
       }
+      // This is a separate read-only access check. No key is needed and
+      // no Supabase Auth endpoint is contacted.
+      if(body.action==="preflight" && Object.keys(body)[0]==="action"){
+        return safeStatusResponse({
+          mode:"read_only_crm_publishable_key_review",
+          state:"staging_access_verified",
+          pilotAccessVerified:true,
+          publishableKeyVerified:false,
+          keyPersisted:false,websiteDeployed:false,
+          ownerCreated:false,emailSent:false,databaseModified:false,
+          note:"Your staging session and test CRM installation records match. You may now verify the TEST project's publishable key.",
+        });
+      }
+      if(!Object.hasOwn(body,"publishableKey"))throw new Error("unexpected_input");
       key=validatePilotPublishableKey(body.publishableKey);
     }catch{return failure("Enter only a Supabase publishable key",400);}
 

@@ -94,6 +94,40 @@ test("unaccepted and unavailable provider keys fail closed; no false verificatio
  /public_auth_settings_not_verifiable/);
 });
 
+test("preflight validates connected test pilot WITHOUT ever requesting a key",async()=>{
+ let providerCalls=0;
+ const report=await handler({inspectKey:async()=>{providerCalls++;throw Error("No provider calls allowed");}})
+   (req(null,{raw:JSON.stringify({action:"preflight"})}));
+ assert.equal(report.status,200);
+ const body=await report.json();
+ assert.equal(body.mode,"read_only_crm_publishable_key_review");
+ assert.equal(body.state,"staging_access_verified");
+ assert.equal(body.pilotAccessVerified,true);
+ assert.equal(body.publishableKeyVerified,false);
+ assert.equal(body.keyPersisted,false);
+ assert.equal(body.websiteDeployed,false);
+ assert.equal(body.ownerCreated,false);
+ assert.equal(body.emailSent,false);
+ assert.equal(providerCalls,0);
+});
+
+test("preflight with no session or wrong pilot fails BEFORE key verification",async()=>{
+ let providerCalls=0;
+ const noSession=await handler({
+   getSession:async()=>null,
+   inspectKey:async()=>{providerCalls++;throw Error("Must not check a key");},
+ })(req(null,{raw:JSON.stringify({action:"preflight"})}));
+ assert.equal(noSession.status,401);
+ const wrongProject=await handler({
+   getProjectLedger:async()=>({...project,project_ref:"aaaaaaaaaaaaaaaaaaaa"}),
+   inspectKey:async()=>{providerCalls++;throw Error("Must not check a key");},
+ })(req(null,{raw:JSON.stringify({action:"preflight"})}));
+ assert.equal(wrongProject.status,403);
+ const body=await wrongProject.json();
+ assert.match(body.error,/does not match the separate test CRM/);
+ assert.equal(providerCalls,0);
+});
+
 test("successful review returns only key fingerprint, no persisted credential",async()=>{
  const response=await handler()(req());
  assert.equal(response.status,200);
@@ -184,6 +218,11 @@ test("provider response key fingerprint never returned if invalid response",asyn
 test("published staging client never logs or stores the submitted key",()=>{
  const app=readFileSync(new URL("../installer/app.mjs",import.meta.url),"utf8");
  const html=readFileSync(new URL("../installer/index.html",import.meta.url),"utf8");
+ assert.match(html,/id="review-crm-access"/);
+ assert.match(html,/id="crm-access-result"/);
+ assert.match(app,/async function reviewCrmAccess/);
+ assert.match(app,/action: "preflight"/);
+ assert.match(app,/crmSafeAccessError/);
  assert.match(html,/id="crm-public-key"/);
  assert.match(html,/id="review-crm-public-key"/);
  assert.match(app,/reviewCrmPublicKey/);
