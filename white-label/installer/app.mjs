@@ -25,6 +25,7 @@ let crmSiteApprovalPending = false;
 let crmSiteCreationPending = false;
 let crmDeploymentReviewPending = false;
 let ownerAuthReviewPending = false;
+let crmPublicKeyPending = false;
 let crmSiteApproval = null;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
@@ -244,6 +245,9 @@ function renderProviders() {
   byId("review-crm-capacity").disabled = crmSiteCapacityPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-site-create").disabled = crmSiteApprovalPending || crmSiteCreationPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("review-crm-deployment").disabled = crmDeploymentReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("review-crm-public-key").disabled = crmPublicKeyPending ||
+    !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken ||
+    !/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(byId("crm-public-key").value);
   byId("review-owner-auth-setup").disabled = ownerAuthReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
 }
 function renderSummary() {
@@ -326,6 +330,8 @@ byId("review-crm-capacity").addEventListener("click", reviewCrmSiteCapacity);
 byId("review-crm-site-create").addEventListener("click", reviewCrmSiteCreation);
 byId("review-crm-deployment").addEventListener("click", reviewCrmDeploymentReadiness);
 byId("review-crm-package").addEventListener("click", reviewCrmPackageSource);
+byId("crm-public-key").addEventListener("input", renderProviders);
+byId("crm-public-key-form").addEventListener("submit", reviewCrmPublicKey);
 byId("review-owner-auth-setup").addEventListener("click", reviewOwnerAuthSetup);
 byId("crm-site-confirm-phrase").addEventListener("input", updateCrmSiteCreationState);
 byId("crm-site-accept-credits").addEventListener("change", updateCrmSiteCreationState);
@@ -1243,6 +1249,58 @@ async function createOneCrmSite(event) {
   } finally {
     crmSiteCreationPending = false;
     resetCrmSiteCreationForm();
+    renderProviders();
+  }
+}
+
+async function reviewCrmPublicKey(event) {
+  event.preventDefault();
+  if (crmPublicKeyPending || !oauthState.connected || !netlifyState.connected ||
+      !oauthState.csrfToken) return;
+  const key = byId("crm-public-key").value;
+  if (!/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(key)) return;
+
+  crmPublicKeyPending = true;
+  renderProviders();
+  const output = byId("crm-public-key-result");
+  output.classList.remove("is-error", "is-warning");
+  output.textContent = "Checking the public key against your dedicated test Supabase…";
+  try {
+    const response = await fetch("/.netlify/functions/crm-publishable-key-review", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": oauthState.csrfToken,
+      },
+      body: JSON.stringify({ publishableKey: key }),
+    });
+    const result = await response.json();
+    if (!response.ok || result.mode !== "read_only_crm_publishable_key_review" ||
+        result.publishableKeyVerified !== true ||
+        result.keyPersisted !== false ||
+        result.websiteDeployed !== false ||
+        result.ownerCreated !== false ||
+        result.emailSent !== false ||
+        !/^[a-f0-9]{12}$/.test(result.fingerprint || "")) {
+      throw new Error("This key could not be validated against the test project.");
+    }
+    if (result.publicSignupsDisabled !== true) {
+      output.classList.add("is-warning");
+      output.textContent = "The test project accepted this public key, but public sign-ups are enabled. Disable public sign-ups before continuing. " +
+        "The key was not saved, and the CRM was not deployed.";
+      return;
+    }
+    output.textContent = "The test Supabase accepted your publishable key and public sign-ups are disabled. " +
+      "Fingerprint: " + result.fingerprint + ". This key was NOT saved. " +
+      "A separately approved deployment is still required; you may need to enter the publishable key again then.";
+  } catch {
+    output.classList.add("is-error");
+    output.textContent = "Could not verify this key for the dedicated test Supabase project. " +
+      "Check that you copied a publishable key from the TEST project, not a secret or the main Klean.ly project. " +
+      "Nothing was saved or deployed.";
+  } finally {
+    byId("crm-public-key").value = "";
+    crmPublicKeyPending = false;
     renderProviders();
   }
 }
