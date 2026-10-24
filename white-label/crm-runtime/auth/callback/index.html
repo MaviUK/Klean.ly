@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#123a31">
+  <title>Accept invitation | Klean.ly Business</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <script type="module" src="../../invite-callback.mjs"></script>
+</head>
+<body>
+  <header class="brandbar">
+    <div class="brand"><span class="brandmark" aria-hidden="true">⌁</span><span><strong>klean.ly</strong><small>BUSINESS</small></span></div>
+    <span class="pilot">STAGING PILOT</span>
+  </header>
+  <main>
+    <section class="login-panel" aria-labelledby="invite-title">
+      <p class="kicker">SECURE OWNER INVITATION</p>
+      <h1 id="invite-title">Set up your account.</h1>
+      <p>Only the invited owner of this dedicated test business can use this link.
+      Your CRM data stays locked until the separate owner assignment is approved.</p>
+      <p class="notice" id="invite-status" role="status" aria-live="polite">Checking the invitation link…</p>
+      <button class="primary" id="accept-invite" type="button" hidden>Accept invitation</button>
+      <form id="new-password-form" hidden>
+        <label for="new-password">Create password</label>
+        <input id="new-password" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+        <label for="confirm-password">Confirm password</label>
+        <input id="confirm-password" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+        <button class="primary" id="save-password" type="submit">Set password</button>
+      </form>
+      <p class="small-note">An email link is never accepted automatically by visiting this page. Never forward your personal invitation.</p>
+      <p><a href="../../">Return to CRM sign-in</a></p>
+    </section>
+  </main>
+  <footer>Klean.ly Business — isolated test CRM. Owner invitation requires separate approval.</footer>
+</body>
+</html>

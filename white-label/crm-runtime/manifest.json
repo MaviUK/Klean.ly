@@ -1,6 +1,6 @@
 {
   "package": "kleanly-business-owner-crm-pilot",
-  "version": "0.1.0-predeploy",
+  "version": "0.2.0-predeploy",
   "type": "isolated-staging-owner-only-runtime-source",
   "deployable": false,
   "authenticationConfigured": false,
@@ -12,12 +12,30 @@
   "readOnly": true,
   "targetProject": "nlupgjwcyivepzgqffss",
   "targetSite": "https://kleanly-business-crm-pilot.netlify.app",
-  "includedFiles": ["index.html", "styles.css", "app.mjs", "tenant.mjs", "_headers"],
-  "requiredSeparateApprovals": [
-    "Review and test first-owner invitation/bootstrap and RLS with a real test owner",
-    "Produce a vetted tenant-config.json containing only a publishable key",
-    "Verify Netlify Free Plan budget, project ID and no previous deployment",
-    "Approve one website deployment after final full security tests"
+  "includedFiles": [
+    "index.html",
+    "styles.css",
+    "app.mjs",
+    "tenant.mjs",
+    "invite-link.mjs",
+    "invite-callback.mjs",
+    "auth/callback/index.html",
+    "_headers",
+    "_redirects"
   ],
-  "notes": "This is source code only, separate from the existing static interface preview. It is deliberately missing tenant-config.json and has no deployment endpoint. Do not upload to any Netlify project yet."
+  "requiredSeparateApprovals": [
+    "Approve trusted one-time owner invitation and Supabase project-specific admin credentials via a secure backend, never in browser or chat",
+    "Verify the test Supabase invitation email template and send only after specific owner approval",
+    "Implement transactional, audited owner profile/team bootstrap with confirmed Supabase Auth user identity",
+    "Verify owner and non-owner RLS with real test sessions",
+    "Generate a vetted tenant-config.json with only the test project's publishable key",
+    "Approve controlled first deployment to the separate, currently empty Netlify CRM pilot site"
+  ],
+  "notes": "Source-only invitation acceptance and initial password setup, with test-owner identity checks. No invitation endpoint, email send, owner assignment, customer-site deployment, database change or server admin credentials are enabled.",
+  "inviteCallbackInSource": true,
+  "passwordSetupInSource": true,
+  "invitationSendingConfigured": false,
+  "callbackEmailTemplateInstalled": false,
+  "ownerBootstrapImplemented": false,
+  "authCredentialUpdatesOnly": true
 }

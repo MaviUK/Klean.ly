@@ -25,8 +25,14 @@ test("runtime remains a separate, explicitly undeployable code package", () => {
   assert.equal(m.readOnly, true);
   assert.equal(m.targetProject, "nlupgjwcyivepzgqffss");
   assert.deepEqual(m.includedFiles,
-    ["index.html", "styles.css", "app.mjs", "tenant.mjs", "_headers"]);
-  assert.match(source("README.md"), /does NOT implement password creation/i);
+    ["index.html", "styles.css", "app.mjs", "tenant.mjs", "invite-link.mjs",
+      "invite-callback.mjs", "auth/callback/index.html", "_headers", "_redirects"]);
+  assert.equal(m.inviteCallbackInSource, true);
+  assert.equal(m.passwordSetupInSource, true);
+  assert.equal(m.invitationSendingConfigured, false);
+  assert.equal(m.ownerBootstrapImplemented, false);
+  assert.match(source("README.md"), /invited-owner password creation/i);
+  assert.match(source("README.md"), /does NOT implement invitation sending/i);
   assert.match(source("README.md"), /SEPARATELY approved deploy/);
   assert.doesNotMatch(source("index.html"), /service_role|sb_secret_/i);
   assert.doesNotMatch(source("app.mjs"), /localStorage|sessionStorage|innerHTML/);

@@ -26,14 +26,12 @@ The two directories are independent.
 
 ## NOT implemented / STOP conditions
 
-This package is intentionally **not deployable**. It is missing
+This package is intentionally **not deployable**. The callback code has not been security-tested with a real invited owner and the first-owner bootstrap is not implemented. It is missing
 \`tenant-config.json\`, deliberately contains **no** real publishable key, and
 the separate pilot Netlify site remains empty. Do not publish these files
 before a reviewed owner-bootstrap flow and a separately approved deploy.
 
-The UI currently accepts an EXISTING owner account with an EXISTING password.
-It does **not** implement password creation or Supabase invitation callback
-handling. Those must be built and tested BEFORE any owner invitation is sent.
+The UI supports a verified existing owner login, and the separate source-only callback now implements invited-owner password creation. It does NOT implement invitation sending or trusted owner bootstrap. Those still require dedicated, audited server-side provisioning and separate approval before any invitation is sent.
 The Supabase Auth Site URL and redirect allowlist can already be configured,
 but a registered redirect alone does not make that callback route functional.
 
@@ -59,3 +57,34 @@ Security and source tests are at \`tests/crm-runtime.test.mjs\`.
 
 This pilot does NOT implement password creation or callback exchange yet.
 The package is not deployable without a separately approved configuration and owner provisioning.
+
+
+## Owner invitation source — prepared, not enabled
+
+- New \`auth/callback/index.html\` and \`invite-callback.mjs\` implement a
+  **user-confirmed** invite acceptance screen. It never consumes an invitation
+  automatically on a GET request or when an email security scanner opens it.
+- \`invite-link.mjs\` accepts only this pilot's exact HTTPS callback and
+  Supabase \`type=invite\` tokens, including default Supabase verified-session
+  fragments and the preferred email template \`token_hash\` flow.
+- Query tokens and session fragments are removed from the browser URL **before**
+  loading configuration or contacting Supabase. No invite tokens are stored.
+- On explicit acceptance, Supabase verifies the one-time invitation token.
+  The resulting user must match the fixed staging test-owner email. A password
+  may then be created, and the temporary Auth session is signed out.
+- Setting a password grants **no access** to CRM records. All private records
+  require the trusted, separately provisioned \`business_profile.owner_user_id\`
+  and verified owner-only RLS. Do not offer an owner self-claim endpoint.
+- Supabase's **Invite user** email template can be prepared using the example
+  \`owner-invitation-email-template.html\`. The template is NOT applied by this
+  commit, and no invitation is sent.
+- A future server-only, single-attempt invite send requires a per-customer
+  Supabase admin credential, an audited reservation and explicit approval.
+  Project OAuth tokens cannot substitute for an Auth admin secret. No admin
+  credential may enter the public CRM runtime.
+- IMPORTANT: Supabase default \`{{ .ConfirmationURL }}\` may be pre-fetched
+  by email scanners before the user clicks it. The preferred custom
+  \`token_hash\` link is verified only when the user taps Accept invitation.
+
+See \`tests/crm-invite-callback.test.mjs\` for scripted no-invite/no-data checks.
+No Netlify project, database or Supabase Auth settings were changed.

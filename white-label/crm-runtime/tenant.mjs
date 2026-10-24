@@ -14,6 +14,7 @@ const VIEW_FIELDS = Object.freeze({
   team_members: "id,display_name,role,is_active,created_at",
 });
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INVITED_PILOT_EMAIL = "kleanlytest@gerball.co.uk";
 
 export function verifiedPilotClientConfig(config, browserOrigin = "") {
   if (!config || typeof config !== "object" || Array.isArray(config) ||
@@ -75,6 +76,9 @@ export function createTenantClient(config, {
   let owner = null;
   let activeUserId = null;
   let inProgressRefresh = null;
+  let inviteSession = null;
+  let invitedUserId = null;
+  let sessionGeneration = 0;
 
   async function send(path, { method = "GET", bearer = "", body } = {}) {
     const response = await fetchFn(target.projectUrl + path, {
@@ -93,7 +97,9 @@ export function createTenantClient(config, {
   }
 
   function clearSession() {
+    sessionGeneration++;
     session = null; owner = null; activeUserId = null; inProgressRefresh = null;
+    inviteSession = null; invitedUserId = null;
   }
 
   async function getVerifiedOwner(token) {
@@ -136,11 +142,86 @@ export function createTenantClient(config, {
     }
   }
 
+  // Accepts ONLY a one-time Supabase "invite" token or default verified
+  // invite session. An invite grants no CRM data access or owner role.
+  async function acceptInvitation(invite) {
+    clearSession();
+    if (!invite || (invite.mode !== "token_hash" && invite.mode !== "session") ||
+        (invite.mode === "token_hash" && (typeof invite.tokenHash !== "string" ||
+          !/^[a-fA-F0-9]{32,128}$/.test(invite.tokenHash)))) {
+      throw new Error("No valid invitation was supplied");
+    }
+    let issued;
+    try {
+      const payload = invite.mode === "token_hash"
+        ? await send("/auth/v1/verify", {
+          method: "POST",
+          body: { token_hash: invite.tokenHash, type: "invite" },
+        })
+        : {
+          access_token: invite.accessToken, refresh_token: invite.refreshToken,
+          expires_in: invite.expiresIn,
+        };
+      issued = safeIsoExpiry(payload, now);
+      const user = await send("/auth/v1/user", { bearer: issued.accessToken });
+      if (!user || typeof user.id !== "string" ||
+          !/^[a-f0-9-]{36}$/i.test(user.id) ||
+          typeof user.email !== "string" ||
+          user.email.toLowerCase() !== INVITED_PILOT_EMAIL) {
+        throw new Error("Wrong invitation identity");
+      }
+      inviteSession = issued;
+      invitedUserId = user.id;
+      return Object.freeze({ email: user.email });
+    } catch {
+      clearSession();
+      throw new Error("Invitation is invalid, expired or not for this test owner");
+    }
+  }
+
+  async function completeInvitationPassword(password) {
+    if (!inviteSession || !invitedUserId) {
+      throw new Error("Verify your invitation first");
+    }
+    if (typeof password !== "string" || password.length < 12 ||
+        password.length > 128 || password.trim() !== password) {
+      throw new Error("Choose a password of 12–128 characters without surrounding spaces");
+    }
+    const bearer = inviteSession.accessToken;
+    if (inviteSession.expiresAt <= now() + 10000) {
+      clearSession();
+      throw new Error("Invitation session expired. Request a fresh link.");
+    }
+    let completed = false;
+    try {
+      const user = await send("/auth/v1/user", {
+        method: "PUT", bearer, body: { password },
+      });
+      if (user?.id !== invitedUserId ||
+          typeof user.email !== "string" ||
+          user.email.toLowerCase() !== INVITED_PILOT_EMAIL) {
+        throw new Error("Invitation identity changed");
+      }
+      completed = true;
+      return Object.freeze({ passwordSet: true, ownerAssigned: false });
+    } finally {
+      // Always revoke the temporary invitation session; the CRM owner role
+      // must be assigned independently by the trusted provisioning service.
+      clearSession();
+      try { await send("/auth/v1/logout", { method: "POST", bearer }); }
+      catch { /* The transient browser session was already discarded. */ }
+      if (!completed) {
+        // Failed updates are not retried automatically.
+      }
+    }
+  }
+
   async function validBearer() {
     if (!owner || !session || !activeUserId) {
       throw new Error("Owner sign-in is required");
     }
     if (session.expiresAt > now() + 90000) return session.accessToken;
+    const generation = sessionGeneration;
     // Serialize concurrent list requests to prevent refresh-token reuse.
     if (!inProgressRefresh) {
       inProgressRefresh = (async () => {
@@ -149,8 +230,8 @@ export function createTenantClient(config, {
         });
         const renewed = safeIsoExpiry(refreshed, now);
         const verified = await getVerifiedOwner(renewed.accessToken);
-        if (verified.userId !== activeUserId) {
-          throw new Error("Owner identity changed. Sign in again.");
+        if (verified.userId !== activeUserId || generation !== sessionGeneration) {
+          throw new Error("Owner identity changed or session ended. Sign in again.");
         }
         session = renewed;
         owner = { businessName: verified.businessName };
@@ -182,7 +263,7 @@ export function createTenantClient(config, {
   }
 
   async function logout() {
-    const token = session?.accessToken;
+    const token = session?.accessToken ?? inviteSession?.accessToken;
     clearSession();
     if (token) {
       try {
@@ -192,7 +273,7 @@ export function createTenantClient(config, {
   }
 
   return Object.freeze({
-    login, list, logout,
+    login, list, logout, acceptInvitation, completeInvitationPassword,
     isOwnerSignedIn: () => Boolean(session && owner),
     ownerName: () => owner?.businessName ?? null,
   });
