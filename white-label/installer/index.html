@@ -209,6 +209,26 @@
           </div>
           <div id="crm-public-key-result" class="oauth-feedback" role="status" aria-live="polite"></div>
           <div class="export-panel">
+            <div>
+              <h2>Deploy ONE test CRM application</h2>
+              <p>Install the initial read-only CRM to the existing <strong>kleanly-business-crm-pilot.netlify.app</strong> site, owned by the separate <strong>kleanlytest</strong> Free Plan team. This is NOT the live Klean.ly site. This action can consume Free Plan credits. It will not send invitations, create owner accounts or import customer data.</p>
+              <p>The installer permanently locks this action after the first submission, including uncertain results. <strong>Never click deploy a second time.</strong></p>
+              <a href="https://kleanly-business-crm-pilot.netlify.app" target="_blank" rel="noopener noreferrer">Open test CRM site ↗</a>
+            </div>
+            <button type="button" id="check-crm-app-deploy" class="action-button" disabled>Check deployment status (read-only)</button>
+            <div id="crm-app-deploy-status" class="oauth-feedback" role="status" aria-live="polite"></div>
+            <form id="crm-app-deploy-form" autocomplete="off">
+              <label for="crm-deploy-public-key">Test Supabase publishable key (sb_publishable_ only)</label>
+              <input type="password" id="crm-deploy-public-key" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="220" placeholder="sb_publishable_..." />
+              <label><input type="checkbox" id="crm-deploy-credits" /> I understand this one deployment may consume Netlify Free Plan credits.</label>
+              <label><input type="checkbox" id="crm-deploy-one" /> I authorise ONE deployment to the existing test CRM website, with NO owner invitation or paid add-ons.</label>
+              <p>To approve, type <strong>DEPLOY ONE TEST CRM</strong>:</p>
+              <input type="text" id="crm-deploy-phrase" autocomplete="off" spellcheck="false" placeholder="Exact confirmation phrase" />
+              <button type="submit" id="submit-crm-app-deploy" class="action-button" disabled>Deploy ONE test CRM website</button>
+            </form>
+            <div id="crm-app-deploy-result" class="oauth-feedback" role="status" aria-live="polite"></div>
+          </div>
+          <div class="export-panel">
             <div><h2>Prepare secure owner login</h2><p>Review the selected test business owner email, dedicated CRM login URL and Supabase Auth redirect settings. This checks configuration only: no invitation will be sent, no account created and no database or website changed.</p></div>
             <button type="button" id="review-owner-auth-setup" class="action-button" disabled>Review owner login setup</button>
           </div>

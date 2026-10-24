@@ -27,6 +27,10 @@ let crmDeploymentReviewPending = false;
 let ownerAuthReviewPending = false;
 let crmPublicKeyPending = false;
 let crmAccessReviewPending = false;
+let crmDeployStatusPending = false;
+let crmDeploySubmitPending = false;
+let crmDeploySubmittedInThisTab = false;
+let crmDeployAlreadyAttempted = false;
 let crmSiteApproval = null;
 let crmSchemaInstallProposal = null;
 let pilotProposal = null;
@@ -252,6 +256,14 @@ function renderProviders() {
     !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken ||
     !/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(byId("crm-public-key").value);
   byId("review-owner-auth-setup").disabled = ownerAuthReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("check-crm-app-deploy").disabled = crmDeployStatusPending ||
+    !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("submit-crm-app-deploy").disabled = crmDeploySubmitPending ||
+    crmDeploySubmittedInThisTab || crmDeployAlreadyAttempted ||
+    !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken ||
+    !/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(byId("crm-deploy-public-key").value) ||
+    !byId("crm-deploy-credits").checked || !byId("crm-deploy-one").checked ||
+    byId("crm-deploy-phrase").value !== "DEPLOY ONE TEST CRM";
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -336,6 +348,12 @@ byId("review-crm-package").addEventListener("click", reviewCrmPackageSource);
 byId("crm-public-key").addEventListener("input", renderProviders);
 byId("crm-public-key-form").addEventListener("submit", reviewCrmPublicKey);
 byId("review-crm-access").addEventListener("click", reviewCrmAccess);
+byId("crm-deploy-public-key").addEventListener("input", renderProviders);
+byId("crm-deploy-credits").addEventListener("change", renderProviders);
+byId("crm-deploy-one").addEventListener("change", renderProviders);
+byId("crm-deploy-phrase").addEventListener("input", renderProviders);
+byId("check-crm-app-deploy").addEventListener("click", checkCrmAppDeploymentStatus);
+byId("crm-app-deploy-form").addEventListener("submit", submitOneCrmAppDeployment);
 byId("review-owner-auth-setup").addEventListener("click", reviewOwnerAuthSetup);
 byId("crm-site-confirm-phrase").addEventListener("input", updateCrmSiteCreationState);
 byId("crm-site-accept-credits").addEventListener("change", updateCrmSiteCreationState);
@@ -1406,6 +1424,125 @@ async function reviewCrmPublicKey(event) {
   } finally {
     byId("crm-public-key").value = "";
     crmPublicKeyPending = false;
+    renderProviders();
+  }
+}
+
+function safeCrmDeployMessage(state) {
+  const messages=Object.freeze({
+    deployment_locked: "This one-time CRM deployment is not enabled on staging.",
+    test_account_not_connected: "Reconnect the test Supabase organisation in this staging installer.",
+    session_verification_failed: "Refresh the staging page to renew the secure session.",
+    test_owner_not_authorised: "The connected staging owner does not match the test business.",
+    pilot_records_do_not_match: "The original test website, database and schema records do not match.",
+    one_deploy_already_attempted: "A deployment attempt is already permanently recorded. Do not retry. Use Check deployment status.",
+    wrong_test_netlify_owner: "The connected Netlify account is not the approved test account.",
+    test_site_is_not_empty_or_free: "The test Netlify website is not confirmed empty on the Free Plan. No upload occurred.",
+    test_publishable_key_or_auth_not_verified: "The test Supabase could not validate this publishable key and disabled public sign-ups.",
+    test_provider_preflight_unavailable: "Could not verify the test accounts. No upload was attempted.",
+    crm_package_not_ready: "The audited CRM ZIP package failed its safety review. No upload was attempted.",
+    deployment_reservation_unavailable: "Could not reserve the one-time deployment. No upload was attempted.",
+    deployment_submission_lock_missing: "Could not lock the one-time deployment. Do not retry.",
+    deployment_outcome_unknown_manual_review: "Netlify may have received the deployment. Do not retry; manually inspect the test site.",
+    deployment_record_manual_review: "The Netlify result needs review. Do not retry.",
+    deployment_status_not_confirmed: "Could not confirm the Netlify deployment status. Check it in the test Netlify account.",
+    one_deploy_record_unavailable: "The one-time deployment record is not available.",
+    explicit_deployment_approval_required: "Confirm both boxes, the exact phrase and the publishable key.",
+  });
+  return messages[state] || "The deployment needs checking. Do not retry automatically.";
+}
+async function checkCrmAppDeploymentStatus() {
+  if (crmDeployStatusPending || !oauthState.csrfToken) return;
+  crmDeployStatusPending = true;
+  renderProviders();
+  const out=byId("crm-app-deploy-status");
+  out.classList.remove("is-error","is-warning");
+  out.textContent="Checking the one-time Netlify deployment record…";
+  try {
+    const response=await fetch("/.netlify/functions/crm-app-deploy-once",{
+      method:"GET",credentials:"same-origin",cache:"no-store",
+      headers:{"X-CSRF-Token":oauthState.csrfToken},
+    });
+    const data=await response.json();
+    if (!response.ok || data?.mode!=="staging_exact_first_crm_deploy") {
+      throw new Error(safeCrmDeployMessage(data?.state));
+    }
+    if(data.state==="not_attempted" && data.canSubmit===true) {
+      out.textContent="No deployment has been submitted. The test deployment form can be used once.";
+    }else{
+      crmDeployAlreadyAttempted=true;
+      if(data.state==="ready"){
+        out.textContent="Test CRM deployment verified. Open https://kleanly-business-crm-pilot.netlify.app to inspect the live test application. No invitation or owner account was created.";
+      }else if(data.state==="submitted"){
+        out.classList.add("is-warning");
+        out.textContent="Netlify has a recorded deployment in progress. Do not send another. You may use this READ-ONLY status button again.";
+      }else{
+        out.classList.add("is-warning");
+        out.textContent="A one-time deployment record already exists ("+String(data.state)+"). It requires manual verification; do not redeploy.";
+      }
+    }
+  }catch(e){
+    out.classList.add("is-error");
+    out.textContent=(e?.message||"The deployment record was unavailable.")+
+      " The app was not deployed by this status check.";
+  }finally{
+    crmDeployStatusPending=false;
+    renderProviders();
+  }
+}
+
+async function submitOneCrmAppDeployment(event) {
+  event.preventDefault();
+  if(crmDeploySubmitPending || crmDeploySubmittedInThisTab ||
+     crmDeployAlreadyAttempted || !oauthState.connected ||
+     !netlifyState.connected || !oauthState.csrfToken ||
+     !byId("crm-deploy-credits").checked || !byId("crm-deploy-one").checked ||
+     byId("crm-deploy-phrase").value!=="DEPLOY ONE TEST CRM"){
+    return;
+  }
+  const publishableKey=byId("crm-deploy-public-key").value;
+  if(!/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(publishableKey))return;
+  if(!window.confirm("FINAL CONFIRMATION: Upload ONE CRM application to the EXISTING kleanly-business-crm-pilot.netlify.app site in the kleanlytest Free Plan team? This may consume Netlify credits. No owner account or invitation will be created. Automatic retries are prohibited.")) return;
+  crmDeploySubmitPending=true;
+  crmDeploySubmittedInThisTab=true; // Never allow another POST in this tab.
+  renderProviders();
+  const out=byId("crm-app-deploy-result");
+  out.classList.remove("is-error","is-warning");
+  out.textContent="Sending ONE controlled CRM deployment request. Do not refresh or resubmit.";
+  try{
+    const response=await fetch("/.netlify/functions/crm-app-deploy-once",{
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json","X-CSRF-Token":oauthState.csrfToken},
+      body:JSON.stringify({
+        confirmation:"DEPLOY ONE TEST CRM",
+        acknowledgeCredits:true,
+        acknowledgeOneDeploy:true,
+        publishableKey,
+      }),
+    });
+    const data=await response.json();
+    if (!response.ok) throw new Error(safeCrmDeployMessage(data?.state));
+    if(data.mode!=="staging_exact_first_crm_deploy" ||
+       !["ready","submitted"].includes(data.state)||
+       data.firstDeploymentOnly!==true || data.automaticRetryAllowed!==false ||
+       data.ownerCreated!==false || data.emailSent!==false){
+       throw new Error("Deployment response could not be verified. Do not retry.");
+    }
+    crmDeployAlreadyAttempted=true;
+    if(data.state==="ready"){
+      out.textContent="The first CRM deployment is LIVE on https://kleanly-business-crm-pilot.netlify.app. Login invitations are NOT active and no owner account was created.";
+    }else{
+      out.classList.add("is-warning");
+      out.textContent="One deployment request was submitted. Netlify may still be processing it. Use Check deployment status; do NOT submit again.";
+    }
+  }catch(e){
+    out.classList.add("is-error");
+    out.textContent=(e?.message||"The one-time deployment outcome is uncertain.")+
+      " No automatic retry is permitted. Check the Netlify test account before taking any further action.";
+  }finally{
+    byId("crm-deploy-public-key").value="";
+    byId("crm-deploy-phrase").value="";
+    crmDeploySubmitPending=false;
     renderProviders();
   }
 }
