@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123a31">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Klean.ly Business | CRM interface preview</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <div class="preview-banner" role="status">
+    <span class="preview-dot" aria-hidden="true"></span>
+    <strong>Interface preview</strong>
+    <span>No owner login, live customer data or database connection yet</span>
+  </div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 36 36" fill="none"><path d="M8 23.5 17 11l5.1 6.5 3.7-4.7 4.2 10.7H8Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M12.5 28h15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </span>
+        <span><span class="brand-main">klean.ly</span><span class="brand-sub">BUSINESS</span></span>
+      </div>
+      <div class="workspace-label">YOUR WORKSPACE</div>
+      <nav class="menu" aria-label="CRM sections">
+        <button class="menu-button is-active" type="button" data-page="dashboard" aria-current="page"><span class="menu-icon" aria-hidden="true">▦</span>Overview</button>
+        <button class="menu-button" type="button" data-page="customers"><span class="menu-icon" aria-hidden="true">♙</span>Customers</button>
+        <button class="menu-button" type="button" data-page="rounds"><span class="menu-icon" aria-hidden="true">◷</span>Cleaning rounds</button>
+        <button class="menu-button" type="button" data-page="jobs"><span class="menu-icon" aria-hidden="true">▤</span>Jobs & schedules</button>
+        <button class="menu-button" type="button" data-page="payments"><span class="menu-icon" aria-hidden="true">£</span>Payments</button>
+        <button class="menu-button" type="button" data-page="messages"><span class="menu-icon" aria-hidden="true">✉</span>Messages</button>
+        <button class="menu-button" type="button" data-page="team"><span class="menu-icon" aria-hidden="true">♧</span>Team</button>
+        <button class="menu-button" type="button" data-page="settings"><span class="menu-icon" aria-hidden="true">⚙</span>Settings</button>
+      </nav>
+      <div class="sidebar-note">
+        <span class="small-dot" aria-hidden="true"></span>
+        <div><strong>Staging prototype</strong><span>Customer tools are locked until owner authentication is configured.</span></div>
+      </div>
+      <div class="side-bottom">
+        <span class="avatar" aria-hidden="true">K</span>
+        <div><strong>Klean.ly test business</strong><span>Owner invitation pending</span></div>
+      </div>
+    </aside>
+    <div class="menu-shade" id="menu-shade" hidden></div>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-leading">
+          <button type="button" class="mobile-menu" id="menu-toggle" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <span class="breadcrumb">Klean.ly Business <span aria-hidden="true">/</span> <strong id="breadcrumb-current">Overview</strong></span>
+        </div>
+        <div class="topbar-actions">
+          <span class="environment-pill"><span aria-hidden="true">●</span> STAGING</span>
+          <span class="owner-circle" aria-label="No owner account configured">?</span>
+        </div>
+      </header>
+      <main class="main" id="main-content">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">KLEAN.LY BUSINESS / CRM V0.1</p>
+            <h1 id="screen-title">Your business, all in one place.</h1>
+            <p id="screen-description" class="lede">A clean workspace for your customers, rounds, bookings and payments.</p>
+          </div>
+          <span class="heading-tag" id="screen-stage"><span aria-hidden="true">◉</span> Design preview</span>
+        </div>
+
+        <section data-view="dashboard" aria-label="Overview dashboard">
+          <div class="hero">
+            <div>
+              <span class="hero-kicker">WELCOME TO YOUR NEW WORKSPACE</span>
+              <h2>Every clean. Every customer. <em>One place.</em></h2>
+              <p>We're preparing your dedicated business system. This preview shows the interface only — no customer records or payments have been loaded.</p>
+              <button class="hero-cta" type="button" data-page="customers">Explore customers <span aria-hidden="true">→</span></button>
+            </div>
+            <div class="hero-art" aria-hidden="true">
+              <div class="art-line art-one"></div><div class="art-line art-two"></div>
+              <div class="art-circle"><span>✓</span></div>
+              <div class="art-card art-card-one"><span>●</span> Routes</div>
+              <div class="art-card art-card-two"><span>✓</span> Jobs</div>
+            </div>
+          </div>
+          <div class="metrics" aria-label="Dashboard metrics">
+            <article class="metric"><span class="metric-icon mint" aria-hidden="true">♙</span><span class="metric-label">Customers</span><strong>—</strong><small>Awaiting owner connection</small></article>
+            <article class="metric"><span class="metric-icon blue" aria-hidden="true">▤</span><span class="metric-label">Jobs this week</span><strong>—</strong><small>No live schedule yet</small></article>
+            <article class="metric"><span class="metric-icon amber" aria-hidden="true">£</span><span class="metric-label">Payments</span><strong>—</strong><small>Not connected</small></article>
+            <article class="metric"><span class="metric-icon violet" aria-hidden="true">✉</span><span class="metric-label">Messages</span><strong>—</strong><small>No delivery configured</small></article>
+          </div>
+          <div class="dashboard-columns">
+            <div class="surface">
+              <div class="surface-top"><div><h3>Upcoming cleaning jobs</h3><p>Keep every route and appointment organised</p></div><span class="chip">Schedule</span></div>
+              <div class="empty-state"><span class="empty-illustration" aria-hidden="true">▤</span><strong>Your schedule will appear here</strong><p>Once your business owner is invited, authorised jobs from your private CRM database will appear in this section.</p></div>
+            </div>
+            <div class="surface">
+              <div class="surface-top"><div><h3>Getting set up</h3><p>What comes next for this test installation</p></div></div>
+              <div class="setup-list">
+                <div class="setup-row"><span class="setup-icon complete" aria-hidden="true">✓</span><div><strong>Separate CRM database</strong><span>Eight-table foundation installed</span></div></div>
+                <div class="setup-row"><span class="setup-icon complete" aria-hidden="true">✓</span><div><strong>Dedicated hosting project</strong><span>Empty Netlify site created</span></div></div>
+                <div class="setup-row"><span class="setup-icon pending" aria-hidden="true">○</span><div><strong>Owner login and secure access</strong><span>Still needs provisioning and testing</span></div></div>
+                <div class="setup-row"><span class="setup-icon pending" aria-hidden="true">○</span><div><strong>Deploy the working CRM app</strong><span>Requires separate approval</span></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section data-view="customers" hidden aria-label="Customer management">
+          <div class="module-stats"><span>Customer records</span><strong>—</strong><small>Not connected</small></div>
+          <div class="surface module-surface"><div class="surface-top"><div><h3>Customers</h3><p>Contacts, addresses and cleaning services together</p></div><button class="locked-action" disabled type="button">+ Add customer</button></div>
+            <div class="table-head"><span>Customer</span><span>Services</span><span>Next clean</span></div><div class="empty-state"><span class="empty-illustration" aria-hidden="true">♙</span><strong>No customer details shown in preview</strong><p>After secure owner sign-in is enabled, customer records will load from your company's dedicated Supabase database.</p></div>
+          </div>
+        </section>
+        <section data-view="rounds" hidden aria-label="Cleaning rounds">
+          <div class="surface module-surface"><div class="surface-top"><div><h3>Cleaning rounds</h3><p>Recurring routes, service intervals and assigned areas</p></div><button class="locked-action" disabled type="button">+ Create round</button></div>
+            <div class="module-intro"><span class="detail-pill">Every 4 weeks</span><span class="detail-pill">Weekly</span><span class="detail-pill">Custom cadence</span></div>
+            <div class="empty-state"><span class="empty-illustration" aria-hidden="true">◷</span><strong>Plan cleaner, more predictable rounds</strong><p>Rounds can be linked to customers and services after business authentication has been configured.</p></div>
+          </div>
+        </section>
+        <section data-view="jobs" hidden aria-label="Jobs and schedules">
+          <div class="surface module-surface"><div class="surface-top"><div><h3>Jobs & schedules</h3><p>Track upcoming, completed, missed and cancelled cleans</p></div><button class="locked-action" disabled type="button">+ Schedule job</button></div>
+            <div class="module-intro"><span class="detail-pill">Scheduled</span><span class="detail-pill">Completed</span><span class="detail-pill">Missed</span><span class="detail-pill">Cancelled</span></div>
+            <div class="empty-state"><span class="empty-illustration" aria-hidden="true">▤</span><strong>Nothing scheduled in this preview</strong><p>Private jobs will appear here once the owner's access and CRM connection are enabled.</p></div>
+          </div>
+        </section>
+        <section data-view="payments" hidden aria-label="Payments">
+          <div class="surface module-surface"><div class="surface-top"><div><h3>Payment records</h3><p>Track payment status across your cleaning customers</p></div><span class="chip">Read-only until configured</span></div>
+            <div class="module-intro"><span class="detail-pill">Pending</span><span class="detail-pill">Paid</span><span class="detail-pill">Failed</span></div>
+            <div class="empty-state"><span class="empty-illustration" aria-hidden="true">£</span><strong>Payments haven't been connected</strong><p>Actual payment status will only be recorded by authorised server-side integrations — not by this browser preview.</p></div>
+          </div>
+        </section>
+        <section data-view="messages" hidden aria-label="Message history">
+          <div class="surface module-surface"><div class="surface-top"><div><h3>Message history</h3><p>Keep customer email and SMS delivery records together</p></div><span class="chip">History only</span></div>
+            <div class="empty-state"><span class="empty-illustration" aria-hidden="true">✉</span><strong>No messaging provider connected</strong><p>The system will show genuine delivery records here after a business messaging provider has been configured.</p></div>
+          </div>
+        </section>
+        <section data-view="team" hidden aria-label="Team management">
+          <div class="surface module-surface"><div class="surface-top"><div><h3>Your team</h3><p>Owner, administrators and cleaning staff</p></div><button class="locked-action" disabled type="button">+ Invite team member</button></div>
+            <div class="empty-state"><span class="empty-illustration" aria-hidden="true">♧</span><strong>Owner access is the next security step</strong><p>No team profiles or invitations exist yet. We will first provision and verify the initial owner safely.</p></div>
+          </div>
+        </section>
+        <section data-view="settings" hidden aria-label="Business settings">
+          <div class="surface module-surface"><div class="surface-top"><div><h3>Business settings</h3><p>Company branding, timezone and contact information</p></div><span class="chip">Owner-only</span></div>
+            <div class="settings-preview"><div><span>Business profile</span><strong>Not yet assigned</strong></div><div><span>Timezone</span><strong>Europe/London (database default)</strong></div><div><span>Private database</span><strong>Configured separately</strong></div><div><span>Authentication</span><strong>Not yet configured</strong></div></div>
+          </div>
+        </section>
+
+        <footer class="footer"><span>Klean.ly Business • Interface prototype v0.1</span><span>No live data is accessed on this preview</span></footer>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

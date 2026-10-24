@@ -1,0 +1,30 @@
+{
+  "package": "kleanly-business-crm",
+  "version": "0.1.0",
+  "type": "static-interface-prototype",
+  "deployable": false,
+  "authenticationConfigured": false,
+  "databaseConnected": false,
+  "ownerInvitationConfigured": false,
+  "readsCustomerData": false,
+  "writesCustomerData": false,
+  "previewOnly": true,
+  "includedFiles": [
+    "index.html",
+    "styles.css",
+    "app.mjs",
+    "_headers",
+    "deployment-manifest.json"
+  ],
+  "modules": [
+    "dashboard",
+    "customers",
+    "rounds",
+    "jobs",
+    "payments",
+    "messages",
+    "team",
+    "settings"
+  ],
+  "notes": "Mobile-ready interface prototype only. Do not deploy to customer Netlify site until owner authentication, client configuration, RLS verification and separate deploy approval are implemented."
+}

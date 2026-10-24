@@ -1,0 +1,41 @@
+{
+  "package": "kleanly-business-owner-crm-pilot",
+  "version": "0.2.0-predeploy",
+  "type": "isolated-staging-owner-only-runtime-source",
+  "deployable": false,
+  "authenticationConfigured": false,
+  "ownerInvitationConfigured": false,
+  "customerSiteDeployed": false,
+  "databaseSchemaChanges": false,
+  "publicSignupsSupported": false,
+  "sessionStorage": "memory-only",
+  "readOnly": true,
+  "targetProject": "nlupgjwcyivepzggffss",
+  "targetSite": "https://kleanly-business-crm-pilot.netlify.app",
+  "includedFiles": [
+    "index.html",
+    "styles.css",
+    "app.mjs",
+    "tenant.mjs",
+    "invite-link.mjs",
+    "invite-callback.mjs",
+    "auth/callback/index.html",
+    "_headers",
+    "_redirects"
+  ],
+  "requiredSeparateApprovals": [
+    "Approve trusted one-time owner invitation and Supabase project-specific admin credentials via a secure backend, never in browser or chat",
+    "Verify the test Supabase invitation email template and send only after specific owner approval",
+    "Implement transactional, audited owner profile/team bootstrap with confirmed Supabase Auth user identity",
+    "Verify owner and non-owner RLS with real test sessions",
+    "Generate a vetted tenant-config.json with only the test project's publishable key",
+    "Approve controlled first deployment to the separate, currently empty Netlify CRM pilot site"
+  ],
+  "notes": "Source-only invitation acceptance and initial password setup, with test-owner identity checks. No invitation endpoint, email send, owner assignment, customer-site deployment, database change or server admin credentials are enabled.",
+  "inviteCallbackInSource": true,
+  "passwordSetupInSource": true,
+  "invitationSendingConfigured": false,
+  "callbackEmailTemplateInstalled": false,
+  "ownerBootstrapImplemented": false,
+  "authCredentialUpdatesOnly": true
+}
