@@ -1275,6 +1275,8 @@ function crmSafeAccessError(message,diagnosticCode) {
     database_not_created: "The test Supabase project creation is not recorded as completed.",
     database_name_mismatch: "The recorded Supabase project name differs from the approved test project.",
     database_reference_mismatch: "The recorded Supabase project ID differs from the approved test database.",
+    database_reference_invalid: "The recorded Supabase project ID is malformed.",
+    runtime_reference_mismatch: "The undeployed CRM runtime source points to a different Supabase project than the verified installation records.",
     schema_not_applied: "The database schema installation has not been recorded as completed.",
     schema_database_reference_mismatch: "The CRM schema was recorded against a different Supabase database.",
     schema_version_mismatch: "The recorded CRM database schema version does not match the approved pilot.",
@@ -1297,6 +1299,7 @@ function crmSafeAccessError(message,diagnosticCode) {
     "This request does not match the separate test CRM": "The test CRM project/site records do not match the approved pilot. This is NOT evidence that the key is incorrect.",
     "Enter only a Supabase publishable key": "Enter the sb_publishable_ key from the TEST Supabase project.",
     "The dedicated test Supabase could not verify this publishable key": "Supabase did not validate the key. Check the TEST project's API Keys page.",
+    "The undeployed CRM source project reference requires review": "The installer database records match, but the CRM application source still references a different Supabase project. Do not enter a key or deploy until the runtime is corrected.",
   });
   return messages[message] || "The test CRM access check was unsuccessful. No credentials were stored.";
 }
@@ -1320,16 +1323,31 @@ async function reviewCrmAccess() {
     const result = await response.json();
     if (!response.ok) throw new Error(crmSafeAccessError(result?.error,result?.diagnosticCode));
     if (result?.mode !== "read_only_crm_publishable_key_review" ||
-        result?.state !== "staging_access_verified" ||
+        !["staging_access_verified","runtime_reference_review_required"].includes(result?.state) ||
         result?.pilotAccessVerified !== true ||
+        !/^[a-z0-9]{20}$/.test(result?.verifiedProjectRef || "") ||
+        !/^[a-z0-9]{20}$/.test(result?.runtimeSourceProjectRef || "") ||
+        typeof result?.runtimeSourceMatches !== "boolean" ||
         result?.publishableKeyVerified !== false ||
         result?.keyPersisted !== false ||
         result?.websiteDeployed !== false ||
+        result?.deploymentApproved !== false ||
         result?.ownerCreated !== false ||
-        result?.emailSent !== false) {
+        result?.emailSent !== false ||
+        (result.state === "staging_access_verified") !== result.runtimeSourceMatches) {
       throw new Error("The staging access response was incomplete.");
     }
-    output.textContent = "Staging access verified. The test CRM site/database records match. You may now verify the TEST Supabase publishable key. No changes were made.";
+    if (!result.runtimeSourceMatches) {
+      output.classList.add("is-warning");
+      output.textContent = "The original TEST website, Supabase project and CRM schema records MATCH. " +
+        "Recorded test project: " + result.verifiedProjectRef + ". " +
+        "The undeployed CRM code currently expects: " + result.runtimeSourceProjectRef + ". " +
+        "The deployment is BLOCKED until the runtime code is corrected. " +
+        "Don't enter the publishable key yet. No records were changed.";
+    } else {
+      output.textContent = "Staging access verified. The original site/database/schema records and the CRM source all match. " +
+        "Test project: " + result.verifiedProjectRef + ". You may now verify the TEST Supabase publishable key. No changes were made.";
+    }
   } catch (error) {
     output.classList.add("is-error");
     output.textContent = (error?.message || "Staging access could not be checked.") +

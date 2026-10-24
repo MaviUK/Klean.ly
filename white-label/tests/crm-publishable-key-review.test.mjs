@@ -12,6 +12,7 @@ import {
 const ORIGIN="https://kleanly-business-installer-staging.netlify.app";
 const OWNER="kleanlytest@gerball.co.uk";
 const REF="nlupgjwcyivepzgqffss";
+const OTHER_REF="abcdefghijklmnopqrst";
 const SITE="c4632a28-a4b0-4e77-a54e-7a8bf05a8882";
 const KEY="sb_publishable_"+"A".repeat(32);
 const USER={
@@ -47,8 +48,9 @@ function handler(overrides={}){
    getSettings:()=>settings,
    getSiteLedger:async()=>site,getProjectLedger:async()=>project,
    getSchemaLedger:async()=>schema,
-   inspectKey:async key=>({
-     keyAccepted:key===KEY,publicSignupsDisabled:true,fingerprint:"b".repeat(12),
+   inspectKey:async (key,projectRef)=>({
+     keyAccepted:key===KEY && projectRef===REF,
+     publicSignupsDisabled:true,fingerprint:"b".repeat(12),
    }),
    ...overrides,
  });
@@ -65,7 +67,7 @@ test("accepts publishable-only exact key; refuses admin secrets and unsafe white
 
 test("Supabase public Auth settings checked with GET only and key never in URL",async()=>{
  const calls=[];
- const report=await inspectPilotPublishableKey(KEY,async(url,opts)=>{
+ const report=await inspectPilotPublishableKey(KEY,REF,async(url,opts)=>{
    calls.push({url,opts});
    assert.equal(opts.method,"GET");
    assert.equal(opts.cache,"no-store");
@@ -86,10 +88,10 @@ test("Supabase public Auth settings checked with GET only and key never in URL",
 });
 
 test("unaccepted and unavailable provider keys fail closed; no false verification",async()=>{
- await assert.rejects(inspectPilotPublishableKey(KEY,
+ await assert.rejects(inspectPilotPublishableKey(KEY,REF,
    async()=>Response.json({message:"internal: private provider information"},{status:401})),
  /publishable_key_not_accepted/);
- await assert.rejects(inspectPilotPublishableKey(KEY,
+ await assert.rejects(inspectPilotPublishableKey(KEY,REF,
    async()=>Response.json({},{status:200})),
  /public_auth_settings_not_verifiable/);
 });
@@ -103,6 +105,9 @@ test("preflight validates connected test pilot WITHOUT ever requesting a key",as
  assert.equal(body.mode,"read_only_crm_publishable_key_review");
  assert.equal(body.state,"staging_access_verified");
  assert.equal(body.pilotAccessVerified,true);
+ assert.equal(body.runtimeSourceMatches,true);
+ assert.equal(body.verifiedProjectRef,REF);
+ assert.equal(body.runtimeSourceProjectRef,REF);
  assert.equal(body.publishableKeyVerified,false);
  assert.equal(body.keyPersisted,false);
  assert.equal(body.websiteDeployed,false);
@@ -141,7 +146,7 @@ test("precise diagnostic reasons identify ONLY the first failing pilot ledger in
    ["site_database_reference_mismatch",{getSiteLedger:async()=>({...site,supabase_project_ref:"aaaaaaaaaaaaaaaaaaaa"})}],
    ["database_not_created",{getProjectLedger:async()=>({...project,status:"unknown"})}],
    ["database_name_mismatch",{getProjectLedger:async()=>({...project,project_name:"different"})}],
-   ["database_reference_mismatch",{getProjectLedger:async()=>({...project,project_ref:"aaaaaaaaaaaaaaaaaaaa"})}],
+   ["database_reference_invalid",{getProjectLedger:async()=>({...project,project_ref:"invalid"})}],
    ["schema_not_applied",{getSchemaLedger:async()=>({...schema,status:"unknown"})}],
    ["schema_database_reference_mismatch",{getSchemaLedger:async()=>({...schema,project_ref:"aaaaaaaaaaaaaaaaaaaa"})}],
    ["schema_version_mismatch",{getSchemaLedger:async()=>({...schema,blueprint_version:2})}],
@@ -184,6 +189,64 @@ test("no diagnostic reason leaks on wrong session, origin, or CSRF",async()=>{
    req(null,{raw:JSON.stringify({action:"preflight"}),headers:{"X-CSRF-Token":"wrong"}}));
  assert.equal(resp.status,403);
  assert.equal((await resp.json()).diagnosticCode,undefined);
+});
+
+test("original site/project/schema reference is authoritative, not a guess in newer source",async()=>{
+  const originalSite={...site,supabase_project_ref:OTHER_REF};
+  const originalProject={...project,project_ref:OTHER_REF};
+  const originalSchema={...schema,project_ref:OTHER_REF};
+  assert.equal(diagnosePilotLedgerMismatch(USER,originalSite,originalProject,originalSchema),null);
+  let calls=0;
+  const h=handler({
+    getSiteLedger:async()=>originalSite,
+    getProjectLedger:async()=>originalProject,
+    getSchemaLedger:async()=>originalSchema,
+    inspectKey:async()=>{calls++;throw Error("Do not verify key while runtime pin differs");},
+  });
+  const preflight=await h(req(null,{raw:JSON.stringify({action:"preflight"})}));
+  assert.equal(preflight.status,200);
+  const body=await preflight.json();
+  assert.equal(body.state,"runtime_reference_review_required");
+  assert.equal(body.pilotAccessVerified,true);
+  assert.equal(body.verifiedProjectRef,OTHER_REF);
+  assert.equal(body.runtimeSourceProjectRef,REF);
+  assert.equal(body.runtimeSourceMatches,false);
+  assert.equal(body.websiteDeployed,false);
+  assert.equal(body.deploymentApproved,false);
+  assert.equal(body.keyPersisted,false);
+  assert.equal(body.ownerCreated,false);
+  assert.equal(body.emailSent,false);
+  assert.equal(calls,0);
+  const blocked=await h(req(KEY));
+  assert.equal(blocked.status,409);
+  const blockedBody=await blocked.json();
+  assert.equal(blockedBody.diagnosticCode,"runtime_reference_mismatch");
+  assert.equal(blockedBody.keyPersisted,false);
+  assert.equal(calls,0);
+});
+
+test("when original ledgers actually differ, no publishable key is checked",async()=>{
+  const mismatchedSite={...site,supabase_project_ref:OTHER_REF};
+  const response=await handler({
+    getSiteLedger:async()=>mismatchedSite,
+    getProjectLedger:async()=>project,
+    inspectKey:async()=>{throw Error("Must not call provider with mismatched ledgers");},
+  })(req(KEY));
+  assert.equal(response.status,403);
+  const body=await response.json();
+  assert.equal(body.diagnosticCode,"site_database_reference_mismatch");
+  assert.equal(body.websiteDeployed,false);
+});
+
+test("Supabase key check only visits the validated project host, never arbitrary browser targets",async()=>{
+  let calls=0;
+  await assert.rejects(inspectPilotPublishableKey(KEY,"bad-id",async()=>{
+    calls++;return Response.json({disable_signup:true});
+  }),/verified_project_reference_required/);
+  await assert.rejects(inspectPilotPublishableKey(KEY,"https://klean.ly",async()=>{
+    calls++;return Response.json({disable_signup:true});
+  }),/verified_project_reference_required/);
+  assert.equal(calls,0);
 });
 
 test("successful review returns only key fingerprint, no persisted credential",async()=>{
@@ -284,6 +347,8 @@ test("published staging client never logs or stores the submitted key",()=>{
  assert.match(app,/diagnosticCode/);
  assert.match(app,/site_owner_binding_mismatch/);
  assert.match(app,/site_id_mismatch/);
+ assert.match(app,/runtime_reference_review_required/);
+ assert.match(app,/The original TEST website/);
  assert.match(html,/id="crm-public-key"/);
  assert.match(html,/id="review-crm-public-key"/);
  assert.match(app,/reviewCrmPublicKey/);

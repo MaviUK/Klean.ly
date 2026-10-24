@@ -4,7 +4,7 @@ import {
 } from "./_lib/connection-vault.mjs";
 import { currentPortalSession } from "./_lib/connection-store.mjs";
 import {
-  isPilotTarget, isStagingHost, pilotSettings, readPilotRecord,
+  isPilotTarget, isStagingHost, pilotSettings, readPilotRecord, REF_PATTERN,
 } from "./_lib/test-project-pilot.mjs";
 import { readCrmSchemaAttempt } from "./_lib/crm-schema-pilot.mjs";
 import {
@@ -18,10 +18,11 @@ import { PILOT_CRM_SITE_NAME } from "./crm-site-proposal.mjs";
 // Read-only, staging-only. The supplied *publishable* key is NEVER persisted,
 // logged, reflected in a response, used for Auth admin, or placed in a build.
 // Supabase API gateway itself confirms whether it belongs to this project.
-const TEST_PROJECT_REF = "nlupgjwcyivepzgqffss";
+// This is the current, UNDEPLOYED runtime source pin, not the source of truth
+// for the installer-created project. The original immutable project/site/schema
+// ledgers must agree before any test-key check. A mismatching pin blocks release.
+const RUNTIME_SOURCE_PIN = "nlupgjwcyivepzgqffss";
 const TEST_NETLIFY_SITE_ID = "c4632a28-a4b0-4e77-a54e-7a8bf05a8882";
-const AUTH_PUBLIC_SETTINGS =
-  "https://" + TEST_PROJECT_REF + ".supabase.co/auth/v1/settings";
 const PUBLISHABLE = /^sb_publishable_[A-Za-z0-9_-]{16,200}$/;
 
 // Only safe, fixed-value diagnostics, available after the authenticated
@@ -37,12 +38,12 @@ export function diagnosePilotLedgerMismatch(current,site,project,schema) {
   if(site.netlify_team_slug!==CRM_SITE_TEAM_SLUG) return "site_team_mismatch";
   if(site.user_id!==current?.user_id ||
      site.organization_id!==current?.organization_id) return "site_owner_binding_mismatch";
-  if(site.supabase_project_ref!==TEST_PROJECT_REF) return "site_database_reference_mismatch";
   if(project.status!=="created") return "database_not_created";
   if(project.project_name!==PILOT_PROJECT_NAME) return "database_name_mismatch";
-  if(project.project_ref!==TEST_PROJECT_REF) return "database_reference_mismatch";
+  if(!REF_PATTERN.test(project.project_ref || "")) return "database_reference_invalid";
+  if(site.supabase_project_ref!==project.project_ref) return "site_database_reference_mismatch";
   if(schema.status!=="applied") return "schema_not_applied";
-  if(schema.project_ref!==TEST_PROJECT_REF) return "schema_database_reference_mismatch";
+  if(schema.project_ref!==project.project_ref) return "schema_database_reference_mismatch";
   if(schema.blueprint_version!==1) return "schema_version_mismatch";
   if(!verifyCrmDeployLedgers(current,site,project,schema)){
     return "linked_records_mismatch";
@@ -67,9 +68,15 @@ export function validatePilotPublishableKey(key) {
   }
   return key;
 }
-export async function inspectPilotPublishableKey(key,fetchFn=fetch) {
+export async function inspectPilotPublishableKey(key, verifiedProjectRef,fetchFn=fetch) {
   validatePilotPublishableKey(key);
-  const response=await fetchFn(AUTH_PUBLIC_SETTINGS,{
+  // verifiedProjectRef may only be supplied by the authenticated caller
+  // after all three original installer ledgers agree. No user-supplied ref.
+  if(!REF_PATTERN.test(verifiedProjectRef || "")) {
+    throw new Error("verified_project_reference_required");
+  }
+  const response=await fetchFn(
+    "https://" + verifiedProjectRef + ".supabase.co/auth/v1/settings",{
     method:"GET",cache:"no-store",redirect:"error",credentials:"omit",
     headers:{
       apikey:key,Accept:"application/json",
@@ -134,6 +141,12 @@ export function createCrmPublishableKeyReviewHandler({
     if(diagnosticCode!==null){
       return failure("This request does not match the separate test CRM",403,diagnosticCode);
     }
+    // The test database project was created by this installer, recorded in a
+    // single immutable project ledger, and copied into its site + schema
+    // ledgers. Keep that authoritative ref distinct from an unreviewed pin in
+    // the not-yet-deployed CRM source.
+    const verifiedProjectRef=records[1].project_ref;
+    const runtimeSourceMatches=verifiedProjectRef===RUNTIME_SOURCE_PIN;
     let key;
     try {
       const raw=await request.text();
@@ -148,20 +161,31 @@ export function createCrmPublishableKeyReviewHandler({
       if(body.action==="preflight" && Object.keys(body)[0]==="action"){
         return safeStatusResponse({
           mode:"read_only_crm_publishable_key_review",
-          state:"staging_access_verified",
+          state:runtimeSourceMatches
+            ? "staging_access_verified"
+            : "runtime_reference_review_required",
           pilotAccessVerified:true,
+          verifiedProjectRef,
+          runtimeSourceProjectRef:RUNTIME_SOURCE_PIN,
+          runtimeSourceMatches,
           publishableKeyVerified:false,
           keyPersisted:false,websiteDeployed:false,
+          deploymentApproved:false,
           ownerCreated:false,emailSent:false,databaseModified:false,
-          note:"Your staging session and test CRM installation records match. You may now verify the TEST project's publishable key.",
+          note:runtimeSourceMatches
+            ? "The original website, project and schema records agree. The runtime source pin also matches. No changes were made."
+            : "The original website, project and schema records agree with each other, but the UNDEPLOYED CRM runtime is pinned to another project. Source review is required before deployment; no key is needed.",
         });
       }
       if(!Object.hasOwn(body,"publishableKey"))throw new Error("unexpected_input");
       key=validatePilotPublishableKey(body.publishableKey);
     }catch{return failure("Enter only a Supabase publishable key",400);}
-
+    if(!runtimeSourceMatches) {
+      return failure("The undeployed CRM source project reference requires review",409,
+        "runtime_reference_mismatch");
+    }
     try {
-      const check=await inspectKey(key);
+      const check=await inspectKey(key,verifiedProjectRef);
       if(check?.keyAccepted!==true ||
          typeof check.publicSignupsDisabled!=="boolean"||
          typeof check.fingerprint!=="string"||
@@ -174,6 +198,8 @@ export function createCrmPublishableKeyReviewHandler({
         publishableKeyVerified:true,
         publicSignupsDisabled:check.publicSignupsDisabled,
         fingerprint:check.fingerprint,
+        verifiedProjectRef,
+        runtimeSourceMatches:true,
         keyPersisted:false,
         deploymentApproved:false,websiteDeployed:false,
         ownerCreated:false,emailSent:false,databaseModified:false,
