@@ -112,7 +112,7 @@ test("valid one-time confirmation sends only one exact upload POST",async()=>{
   assert.equal(t.context.crmDeployAlreadyAttempted,true);
   assert.equal(t.fields["crm-deploy-public-key"].value,"");
   assert.equal(t.fields["crm-deploy-phrase"].value,"");
-  assert.match(t.fields["crm-app-deploy-result"].textContent,/Do NOT submit again/);
+  assert.match(t.fields["crm-app-deploy-result"].textContent,/do NOT submit again/i);
   await t.submit();
   assert.equal(t.requests.length,1);
 });
