@@ -1,0 +1,23 @@
+{
+  "package": "kleanly-business-owner-crm-pilot",
+  "version": "0.1.0-predeploy",
+  "type": "isolated-staging-owner-only-runtime-source",
+  "deployable": false,
+  "authenticationConfigured": false,
+  "ownerInvitationConfigured": false,
+  "customerSiteDeployed": false,
+  "databaseSchemaChanges": false,
+  "publicSignupsSupported": false,
+  "sessionStorage": "memory-only",
+  "readOnly": true,
+  "targetProject": "nlupgjwcyivepzgqffss",
+  "targetSite": "https://kleanly-business-crm-pilot.netlify.app",
+  "includedFiles": ["index.html", "styles.css", "app.mjs", "tenant.mjs", "_headers"],
+  "requiredSeparateApprovals": [
+    "Review and test first-owner invitation/bootstrap and RLS with a real test owner",
+    "Produce a vetted tenant-config.json containing only a publishable key",
+    "Verify Netlify Free Plan budget, project ID and no previous deployment",
+    "Approve one website deployment after final full security tests"
+  ],
+  "notes": "This is source code only, separate from the existing static interface preview. It is deliberately missing tenant-config.json and has no deployment endpoint. Do not upload to any Netlify project yet."
+}

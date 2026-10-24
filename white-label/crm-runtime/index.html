@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#123a31">
+  <title>Klean.ly Business | Secure CRM pilot</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <header class="brandbar">
+    <div class="brand"><span class="brandmark" aria-hidden="true">⌁</span><span><strong>klean.ly</strong><small>BUSINESS</small></span></div>
+    <span class="pilot">STAGING PILOT</span>
+  </header>
+  <main>
+    <section id="login-screen" class="login-panel" aria-labelledby="login-heading">
+      <div class="kicker">YOUR BUSINESS. YOUR OWN PRIVATE CRM.</div>
+      <h1 id="login-heading">Welcome back.</h1>
+      <p>Secure access for the invited owner of your Klean.ly Business workspace. This separate pilot has no open registration.</p>
+      <form id="login-form" hidden>
+        <label for="owner-email">Owner email</label>
+        <input id="owner-email" type="email" required autocomplete="username" maxlength="254" spellcheck="false">
+        <label for="owner-password">Password</label>
+        <input id="owner-password" type="password" required autocomplete="current-password" maxlength="2048">
+        <button class="primary" id="login-button" type="submit">Sign in securely</button>
+      </form>
+      <div id="login-message" class="notice" role="status" aria-live="polite">Checking the dedicated CRM configuration…</div>
+      <p class="small-note">New owner invitations and password setup will be enabled only after the separately approved provisioning step. No customer details are visible without verified owner access.</p>
+    </section>
+
+    <section id="workspace" hidden aria-label="Private CRM workspace">
+      <div class="workspace-top">
+        <div><p class="kicker">KLEAN.LY BUSINESS</p><h1 id="business-title">Your workspace</h1><p>Private records from your company's dedicated database.</p></div>
+        <button id="sign-out" class="secondary" type="button">Sign out</button>
+      </div>
+      <nav class="modules" aria-label="CRM sections">
+        <button data-section="customers" class="active" type="button">Customers</button>
+        <button data-section="rounds" type="button">Cleaning rounds</button>
+        <button data-section="customer_services" type="button">Services</button>
+        <button data-section="jobs" type="button">Jobs</button>
+        <button data-section="payments" type="button">Payments</button>
+        <button data-section="message_log" type="button">Messages</button>
+        <button data-section="team_members" type="button">Team</button>
+      </nav>
+      <section class="records" aria-label="CRM records">
+        <div class="records-head"><div><h2 id="records-heading">Customers</h2><p id="records-description">Your customer list</p></div><button class="secondary" id="reload-records" type="button">Refresh</button></div>
+        <div id="records-status" class="notice" role="status" aria-live="polite"></div>
+        <div id="record-list" class="record-list"></div>
+        <button id="load-more" type="button" class="secondary" hidden>Load more</button>
+        <p class="small-note">Phase one is intentionally read-only. Owner-only RLS is required for every record. Payments and message history cannot be modified here.</p>
+      </section>
+    </section>
+  </main>
+  <footer>Klean.ly Business — isolated test CRM. Not the public Klean.ly directory.</footer>
+</body>
+</html>
