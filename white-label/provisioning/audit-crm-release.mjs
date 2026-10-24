@@ -100,7 +100,7 @@ export async function auditPilotReleaseSource(sourceDir, fs={readFile,lstat}) {
   insist(/fetch\(["']\.\/tenant-config\.json["']/.test(app) &&
     /fetch\(["']\.\.\/\.\.\/tenant-config\.json["']/.test(callbackJs),
     "missing_tenant_config_gate");
-  insist(/const PILOT_REF = ["']nlupgjwcyivepzgqffss["']/.test(client) &&
+  insist(/const PILOT_REF = ["']nlupgjwcyivepzggffss["']/.test(client) &&
     /const PILOT_CRM_ORIGIN = ["']https:\/\/kleanly-business-crm-pilot\.netlify\.app["']/.test(client) &&
     !/localStorage|sessionStorage|innerHTML/.test(client+callbackJs+app),
     "isolation_or_session_storage");

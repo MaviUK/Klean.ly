@@ -1431,7 +1431,7 @@ async function reviewCrmPackageSource() {
         review.noSecretKeysBundled !== true ||
         review.siteId !== "c4632a28-a4b0-4e77-a54e-7a8bf05a8882" ||
         review.siteUrl !== "https://kleanly-business-crm-pilot.netlify.app" ||
-        review.projectUrl !== "https://nlupgjwcyivepzgqffss.supabase.co" ||
+        review.projectUrl !== "https://nlupgjwcyivepzggffss.supabase.co" ||
         review.filesChecked !== 9 ||
         !/^[0-9a-f]{64}$/.test(review.sourceHash || "") ||
         review.websiteDeployed !== false ||

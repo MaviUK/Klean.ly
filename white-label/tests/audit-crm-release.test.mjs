@@ -44,7 +44,7 @@ test("fails closed if a public key, secret, unsafe HTML or modified target enter
     await rm(config);
     const file=join(dir,"manifest.json");
     const original=await readFile(file,"utf8");
-    await writeFile(file,original.replace("nlupgjwcyivepzgqffss","live_project_ref"));
+    await writeFile(file,original.replace("nlupgjwcyivepzggffss","live_project_ref"));
     await assert.rejects(auditPilotReleaseSource(dir),/manifest_safety_state/);
   });
   await copySource(async dir=>{

@@ -21,7 +21,7 @@ import { PILOT_CRM_SITE_NAME } from "./crm-site-proposal.mjs";
 // This is the current, UNDEPLOYED runtime source pin, not the source of truth
 // for the installer-created project. The original immutable project/site/schema
 // ledgers must agree before any test-key check. A mismatching pin blocks release.
-const RUNTIME_SOURCE_PIN = "nlupgjwcyivepzgqffss";
+const RUNTIME_SOURCE_PIN = "nlupgjwcyivepzggffss";
 const TEST_NETLIFY_SITE_ID = "c4632a28-a4b0-4e77-a54e-7a8bf05a8882";
 const PUBLISHABLE = /^sb_publishable_[A-Za-z0-9_-]{16,200}$/;
 

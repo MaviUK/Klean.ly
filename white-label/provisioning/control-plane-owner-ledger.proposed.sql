@@ -13,7 +13,7 @@ create table portal_test_crm_first_owner_operations (
   user_id text not null check (length(user_id) between 1 and 128),
   organization_id text not null check (length(organization_id) between 1 and 128),
   project_ref text not null
-    check (project_ref = 'nlupgjwcyivepzgqffss'),
+    check (project_ref = 'nlupgjwcyivepzggffss'),
   owner_email text not null
     check (owner_email = 'kleanlytest@gerball.co.uk'),
   target_site text not null default

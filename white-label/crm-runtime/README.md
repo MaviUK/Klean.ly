@@ -45,7 +45,7 @@ checked again at the time of final approval.
 At the future, SEPARATELY approved deploy milestone, a controlled builder
 must generate \`tenant-config.json\` with ONLY these public fields, validated
 against the approved pilot:
-- \`projectUrl\`: https://nlupgjwcyivepzgqffss.supabase.co
+- \`projectUrl\`: https://nlupgjwcyivepzggffss.supabase.co
 - \`siteUrl\`: https://kleanly-business-crm-pilot.netlify.app
 - \`publishableKey\`: the dedicated test Supabase \`sb_publishable_\` key
 

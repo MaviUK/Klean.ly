@@ -9,7 +9,7 @@ import {
 } from "../crm-runtime/tenant.mjs";
 
 const origin = "https://kleanly-business-crm-pilot.netlify.app";
-const project = "https://nlupgjwcyivepzgqffss.supabase.co";
+const project = "https://nlupgjwcyivepzggffss.supabase.co";
 const email = "kleanlytest@gerball.co.uk";
 const uid = "00000000-0000-4000-8000-000000000001";
 const config = { projectUrl: project, siteUrl: origin,

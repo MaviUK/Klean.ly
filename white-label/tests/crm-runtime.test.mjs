@@ -5,7 +5,7 @@ import {
   createTenantClient, verifiedPilotClientConfig,
 } from "../crm-runtime/tenant.mjs";
 const origin = "https://kleanly-business-crm-pilot.netlify.app";
-const projectUrl = "https://nlupgjwcyivepzgqffss.supabase.co";
+const projectUrl = "https://nlupgjwcyivepzggffss.supabase.co";
 const uid = "00000000-0000-4000-8000-000000000001";
 const config = {
   projectUrl, siteUrl: origin,
@@ -23,7 +23,7 @@ test("runtime remains a separate, explicitly undeployable code package", () => {
   assert.equal(m.ownerInvitationConfigured, false);
   assert.equal(m.customerSiteDeployed, false);
   assert.equal(m.readOnly, true);
-  assert.equal(m.targetProject, "nlupgjwcyivepzgqffss");
+  assert.equal(m.targetProject, "nlupgjwcyivepzggffss");
   assert.deepEqual(m.includedFiles,
     ["index.html", "styles.css", "app.mjs", "tenant.mjs", "invite-link.mjs",
       "invite-callback.mjs", "auth/callback/index.html", "_headers", "_redirects"]);
@@ -48,7 +48,7 @@ test("client rejects wrong project, wrong site, live directory and non-publishab
   assert.equal(verifiedPilotClientConfig(config, origin).siteUrl, origin);
   for (const changed of [
     {projectUrl:"https://otherprojectref1234.supabase.co"},
-    {projectUrl:"http://nlupgjwcyivepzgqffss.supabase.co"},
+    {projectUrl:"http://nlupgjwcyivepzggffss.supabase.co"},
     {projectUrl:projectUrl+"/foo"},
     {siteUrl:"https://klean.ly"},
     {siteUrl:"https://other-tenant.netlify.app"},
@@ -166,7 +166,7 @@ test("runtime scripts are local, no inline code, and no public-key configuration
   assert.doesNotMatch(html,/<script(?![^>]*\bsrc=)[^>]*>/i);
   assert.match(head,/frame-ancestors 'none'/);
   assert.match(head,/script-src 'self'/);
-  assert.match(head,/connect-src 'self' https:\/\/nlupgjwcyivepzgqffss\.supabase\.co/);
+  assert.match(head,/connect-src 'self' https:\/\/nlupgjwcyivepzggffss\.supabase\.co/);
   assert.doesNotMatch(head,/\*\.supabase\.co|unsafe-inline|unsafe-eval/i);
   for(const s of [html,js,source("tenant.mjs"),head]) {
     assert.doesNotMatch(s,/SUPABASE_SERVICE_ROLE_KEY|NETLIFY_OAUTH_CLIENT_SECRET|DATABASE_URL/);

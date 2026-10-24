@@ -7,7 +7,7 @@ import {createHash} from "node:crypto";
 
 export const RELEASE_PILOT_SITE_ID = "c4632a28-a4b0-4e77-a54e-7a8bf05a8882";
 export const RELEASE_PILOT_URL = "https://kleanly-business-crm-pilot.netlify.app";
-export const RELEASE_PILOT_SUPABASE = "https://nlupgjwcyivepzgqffss.supabase.co";
+export const RELEASE_PILOT_SUPABASE = "https://nlupgjwcyivepzggffss.supabase.co";
 export const RELEASE_CONTENT = Object.freeze([
   "_headers","_redirects","index.html","styles.css","app.mjs",
   "tenant.mjs","invite-link.mjs","invite-callback.mjs",

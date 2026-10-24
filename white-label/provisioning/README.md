@@ -9,7 +9,7 @@ only \`installer/\`. The proposed ledger SQL is NOT an active migration.
 
 ## Ground-truth environment (the only allowed pilot)
 
-- Supabase test project \`nlupgjwcyivepzgqffss\` — Frankfurt
+- Supabase test project \`nlupgjwcyivepzggffss\` — Frankfurt
 - Empty CRM site \`https://kleanly-business-crm-pilot.netlify.app\`
 - Test owner \`kleanlytest@gerball.co.uk\`
 - Callback \`https://kleanly-business-crm-pilot.netlify.app/auth/callback\`

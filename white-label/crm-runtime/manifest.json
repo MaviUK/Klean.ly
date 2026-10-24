@@ -10,7 +10,7 @@
   "publicSignupsSupported": false,
   "sessionStorage": "memory-only",
   "readOnly": true,
-  "targetProject": "nlupgjwcyivepzgqffss",
+  "targetProject": "nlupgjwcyivepzggffss",
   "targetSite": "https://kleanly-business-crm-pilot.netlify.app",
   "includedFiles": [
     "index.html",
