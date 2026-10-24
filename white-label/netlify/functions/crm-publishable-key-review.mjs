@@ -11,6 +11,9 @@ import {
   readCrmSiteAttempt, CRM_SITE_OWNER_EMAIL,
 } from "./_lib/crm-site-pilot.mjs";
 import { verifyCrmDeployLedgers } from "./crm-deployment-readiness.mjs";
+import { PILOT_PROJECT_NAME } from "./_lib/test-project-pilot.mjs";
+import { CRM_SITE_TEAM_SLUG } from "./_lib/crm-site-pilot.mjs";
+import { PILOT_CRM_SITE_NAME } from "./crm-site-proposal.mjs";
 
 // Read-only, staging-only. The supplied *publishable* key is NEVER persisted,
 // logged, reflected in a response, used for Auth admin, or placed in a build.
@@ -21,10 +24,37 @@ const AUTH_PUBLIC_SETTINGS =
   "https://" + TEST_PROJECT_REF + ".supabase.co/auth/v1/settings";
 const PUBLISHABLE = /^sb_publishable_[A-Za-z0-9_-]{16,200}$/;
 
-function failure(message, status=409) {
+// Only safe, fixed-value diagnostics, available after the authenticated
+// test account, same-origin and CSRF checks have passed. Never expose raw
+// ledger rows, user IDs, project metadata or credentials.
+export function diagnosePilotLedgerMismatch(current,site,project,schema) {
+  if(!site) return "site_record_missing";
+  if(!project) return "database_record_missing";
+  if(!schema) return "schema_record_missing";
+  if(site.status!=="created") return "site_not_created";
+  if(site.site_name!==PILOT_CRM_SITE_NAME) return "site_name_mismatch";
+  if(site.site_id!==TEST_NETLIFY_SITE_ID) return "site_id_mismatch";
+  if(site.netlify_team_slug!==CRM_SITE_TEAM_SLUG) return "site_team_mismatch";
+  if(site.user_id!==current?.user_id ||
+     site.organization_id!==current?.organization_id) return "site_owner_binding_mismatch";
+  if(site.supabase_project_ref!==TEST_PROJECT_REF) return "site_database_reference_mismatch";
+  if(project.status!=="created") return "database_not_created";
+  if(project.project_name!==PILOT_PROJECT_NAME) return "database_name_mismatch";
+  if(project.project_ref!==TEST_PROJECT_REF) return "database_reference_mismatch";
+  if(schema.status!=="applied") return "schema_not_applied";
+  if(schema.project_ref!==TEST_PROJECT_REF) return "schema_database_reference_mismatch";
+  if(schema.blueprint_version!==1) return "schema_version_mismatch";
+  if(!verifyCrmDeployLedgers(current,site,project,schema)){
+    return "linked_records_mismatch";
+  }
+  return null;
+}
+
+function failure(message, status=409, diagnosticCode=null) {
   return safeStatusResponse({
     mode: "read_only_crm_publishable_key_review",
     error:message,
+    ...(diagnosticCode?{diagnosticCode}:{}),
     publishableKeyVerified:false,
     keyPersisted:false, websiteDeployed:false,
     ownerCreated:false, emailSent:false, databaseModified:false,
@@ -100,11 +130,9 @@ export function createCrmPublishableKeyReviewHandler({
         getSiteLedger(current),getProjectLedger(current),getSchemaLedger(current),
       ]);
     }catch{return failure("Test installation record could not be verified",503);}
-    if(!verifyCrmDeployLedgers(current,...records) ||
-       records[0].site_id!==TEST_NETLIFY_SITE_ID ||
-       records[1].project_ref!==TEST_PROJECT_REF ||
-       records[2].project_ref!==TEST_PROJECT_REF) {
-      return failure("This request does not match the separate test CRM",403);
+    const diagnosticCode=diagnosePilotLedgerMismatch(current,...records);
+    if(diagnosticCode!==null){
+      return failure("This request does not match the separate test CRM",403,diagnosticCode);
     }
     let key;
     try {

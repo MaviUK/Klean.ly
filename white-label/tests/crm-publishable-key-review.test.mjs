@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   validatePilotPublishableKey,inspectPilotPublishableKey,
-  createCrmPublishableKeyReviewHandler,
+  createCrmPublishableKeyReviewHandler,diagnosePilotLedgerMismatch,
 } from "../netlify/functions/crm-publishable-key-review.mjs";
 import {
   PILOT_PROJECT_NAME,pilotSettings,
@@ -128,6 +128,64 @@ test("preflight with no session or wrong pilot fails BEFORE key verification",as
  assert.equal(providerCalls,0);
 });
 
+test("precise diagnostic reasons identify ONLY the first failing pilot ledger invariant",async()=>{
+ const failures=[
+   ["site_record_missing",{getSiteLedger:async()=>null}],
+   ["database_record_missing",{getProjectLedger:async()=>null}],
+   ["schema_record_missing",{getSchemaLedger:async()=>null}],
+   ["site_not_created",{getSiteLedger:async()=>({...site,status:"unknown"})}],
+   ["site_name_mismatch",{getSiteLedger:async()=>({...site,site_name:"different"})}],
+   ["site_id_mismatch",{getSiteLedger:async()=>({...site,site_id:"c275509f-2fe2-4fb7-a797-39de7f2b22d4"})}],
+   ["site_team_mismatch",{getSiteLedger:async()=>({...site,netlify_team_slug:"live"})}],
+   ["site_owner_binding_mismatch",{getSiteLedger:async()=>({...site,organization_id:"other-org"})}],
+   ["site_database_reference_mismatch",{getSiteLedger:async()=>({...site,supabase_project_ref:"aaaaaaaaaaaaaaaaaaaa"})}],
+   ["database_not_created",{getProjectLedger:async()=>({...project,status:"unknown"})}],
+   ["database_name_mismatch",{getProjectLedger:async()=>({...project,project_name:"different"})}],
+   ["database_reference_mismatch",{getProjectLedger:async()=>({...project,project_ref:"aaaaaaaaaaaaaaaaaaaa"})}],
+   ["schema_not_applied",{getSchemaLedger:async()=>({...schema,status:"unknown"})}],
+   ["schema_database_reference_mismatch",{getSchemaLedger:async()=>({...schema,project_ref:"aaaaaaaaaaaaaaaaaaaa"})}],
+   ["schema_version_mismatch",{getSchemaLedger:async()=>({...schema,blueprint_version:2})}],
+   ["linked_records_mismatch",{getSiteLedger:async()=>({...site,netlify_team_id:null})}],
+ ];
+ for(const [code,over] of failures){
+   let inspected=0;
+   const r=await handler({...over,inspectKey:async()=>{inspected++;throw Error("Key must not be inspected");}})
+     (req(null,{raw:JSON.stringify({action:"preflight"})}));
+   assert.equal(r.status,403,code);
+   const body=await r.json();
+   assert.equal(body.diagnosticCode,code);
+   assert.equal(body.publishableKeyVerified,false);
+   assert.equal(body.keyPersisted,false);
+   assert.equal(body.websiteDeployed,false);
+   assert.equal(body.ownerCreated,false);
+   assert.equal(body.emailSent,false);
+   assert.equal(inspected,0);
+   assert.ok(!Object.hasOwn(body,"site_id"));
+   assert.ok(!Object.hasOwn(body,"project_ref"));
+   assert.ok(!Object.hasOwn(body,"session"));
+   assert.doesNotMatch(JSON.stringify(body),/sb_publishable_|csrf-token|pilot-user|pilot-org|test-netlify-user/i);
+ }
+ assert.equal(diagnosePilotLedgerMismatch(USER,site,project,schema),null);
+});
+
+test("no diagnostic reason leaks on wrong session, origin, or CSRF",async()=>{
+ for(const opts of [
+   {getSession:async()=>null},
+   {getSession:async()=>({...USER,email:"other@example.test"})},
+   {getMode:()=> "disabled"},
+ ]){
+   const result=await handler({...opts,getSiteLedger:async()=>null})
+     (req(null,{raw:JSON.stringify({action:"preflight"})}));
+   const body=await result.json();
+   assert.ok(result.status>=400);
+   assert.equal(body.diagnosticCode,undefined);
+ }
+ const resp=await handler({getSiteLedger:async()=>null})(
+   req(null,{raw:JSON.stringify({action:"preflight"}),headers:{"X-CSRF-Token":"wrong"}}));
+ assert.equal(resp.status,403);
+ assert.equal((await resp.json()).diagnosticCode,undefined);
+});
+
 test("successful review returns only key fingerprint, no persisted credential",async()=>{
  const response=await handler()(req());
  assert.equal(response.status,200);
@@ -223,6 +281,9 @@ test("published staging client never logs or stores the submitted key",()=>{
  assert.match(app,/async function reviewCrmAccess/);
  assert.match(app,/action: "preflight"/);
  assert.match(app,/crmSafeAccessError/);
+ assert.match(app,/diagnosticCode/);
+ assert.match(app,/site_owner_binding_mismatch/);
+ assert.match(app,/site_id_mismatch/);
  assert.match(html,/id="crm-public-key"/);
  assert.match(html,/id="review-crm-public-key"/);
  assert.match(app,/reviewCrmPublicKey/);

@@ -1259,7 +1259,32 @@ async function createOneCrmSite(event) {
 
 // The API returns only these pre-auth, safe messages; never reflect arbitrary
 // provider responses, API keys or stack traces in the staging UI.
-function crmSafeAccessError(message) {
+function crmSafeAccessError(message,diagnosticCode) {
+  // These are fixed diagnostic codes from an authenticated test-only check.
+  // Never echo provider responses, keys, user identifiers or ledger records.
+  const diagnostics = Object.freeze({
+    site_record_missing: "The Netlify CRM website creation record is missing from the staging installer.",
+    database_record_missing: "The test Supabase project creation record is missing from the installer.",
+    schema_record_missing: "The test CRM database schema installation record is missing.",
+    site_not_created: "The Netlify site creation is not marked completed in the installer.",
+    site_name_mismatch: "The recorded CRM website name does not match the approved test site.",
+    site_id_mismatch: "The recorded Netlify site ID differs from the approved test CRM website.",
+    site_team_mismatch: "The CRM website was recorded under a different Netlify team.",
+    site_owner_binding_mismatch: "The recorded CRM website belongs to a different staging account or organisation.",
+    site_database_reference_mismatch: "The CRM website record is linked to a different Supabase project.",
+    database_not_created: "The test Supabase project creation is not recorded as completed.",
+    database_name_mismatch: "The recorded Supabase project name differs from the approved test project.",
+    database_reference_mismatch: "The recorded Supabase project ID differs from the approved test database.",
+    schema_not_applied: "The database schema installation has not been recorded as completed.",
+    schema_database_reference_mismatch: "The CRM schema was recorded against a different Supabase database.",
+    schema_version_mismatch: "The recorded CRM database schema version does not match the approved pilot.",
+    linked_records_mismatch: "The database and hosting installation records disagree on additional security bindings.",
+  });
+  if (typeof diagnosticCode === "string" &&
+      Object.hasOwn(diagnostics,diagnosticCode)) {
+    return diagnostics[diagnosticCode] +
+      " Deployment remains blocked until this is reviewed; no new project or account is needed.";
+  }
   const messages = Object.freeze({
     "Staging only": "The request did not originate from the correct staging website.",
     "Secure staging portal unavailable": "The secure staging portal is temporarily unavailable.",
@@ -1293,7 +1318,7 @@ async function reviewCrmAccess() {
       body: JSON.stringify({ action: "preflight" }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(crmSafeAccessError(result?.error));
+    if (!response.ok) throw new Error(crmSafeAccessError(result?.error,result?.diagnosticCode));
     if (result?.mode !== "read_only_crm_publishable_key_review" ||
         result?.state !== "staging_access_verified" ||
         result?.pilotAccessVerified !== true ||
@@ -1337,7 +1362,7 @@ async function reviewCrmPublicKey(event) {
       body: JSON.stringify({ publishableKey: key }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(crmSafeAccessError(result?.error));
+    if (!response.ok) throw new Error(crmSafeAccessError(result?.error,result?.diagnosticCode));
     if (result.mode !== "read_only_crm_publishable_key_review" ||
         result.publishableKeyVerified !== true ||
         result.keyPersisted !== false ||
