@@ -258,12 +258,40 @@ function renderProviders() {
   byId("review-owner-auth-setup").disabled = ownerAuthReviewPending || !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
   byId("check-crm-app-deploy").disabled = crmDeployStatusPending ||
     !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
-  byId("submit-crm-app-deploy").disabled = crmDeploySubmitPending ||
+  // Do not disable the button for incomplete fields: on mobile, tapping a
+  // disabled button appears to do nothing. Keep all real deployment guards
+  // server-side, and explain missing requirements before ANY deploy request.
+  const unsafeToSubmit = crmDeploySubmitPending ||
     crmDeploySubmittedInThisTab || crmDeployAlreadyAttempted ||
-    !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken ||
-    !/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(byId("crm-deploy-public-key").value) ||
-    !byId("crm-deploy-credits").checked || !byId("crm-deploy-one").checked ||
-    byId("crm-deploy-phrase").value !== "DEPLOY ONE TEST CRM";
+    !oauthState.connected || !netlifyState.connected || !oauthState.csrfToken;
+  byId("submit-crm-app-deploy").disabled = unsafeToSubmit;
+  const guidance = byId("crm-deploy-requirements");
+  guidance.textContent = crmDeployFormBlocker() ||
+    "Ready for final confirmation. The one-time upload only starts after you approve the confirmation dialog.";
+}
+function crmDeployFormBlocker() {
+  if (crmDeploySubmittedInThisTab || crmDeployAlreadyAttempted) {
+    return "A deployment request has already been attempted. Do NOT send another. Use Check deployment status (read-only).";
+  }
+  if (crmDeploySubmitPending) {
+    return "One deployment request is in progress. Do NOT press Deploy again.";
+  }
+  if (!oauthState.connected || !netlifyState.connected || !oauthState.csrfToken) {
+    return "First connect both approved TEST accounts in this installer. No deployment is permitted while disconnected.";
+  }
+  if (!/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(byId("crm-deploy-public-key").value)) {
+    return "Step 1: paste the TEST Supabase publishable key (starting sb_publishable_). Never use a secret key.";
+  }
+  if (!byId("crm-deploy-credits").checked) {
+    return "Step 2: tick the box acknowledging Netlify Free Plan credits.";
+  }
+  if (!byId("crm-deploy-one").checked) {
+    return "Step 3: tick the box authorising ONE deployment to the existing TEST CRM site.";
+  }
+  if (byId("crm-deploy-phrase").value !== "DEPLOY ONE TEST CRM") {
+    return "Step 4: type the exact phrase DEPLOY ONE TEST CRM.";
+  }
+  return "";
 }
 function renderSummary() {
   setText("summary-name", draft.name.trim() || "—");
@@ -1495,20 +1523,24 @@ async function checkCrmAppDeploymentStatus() {
 
 async function submitOneCrmAppDeployment(event) {
   event.preventDefault();
-  if(crmDeploySubmitPending || crmDeploySubmittedInThisTab ||
-     crmDeployAlreadyAttempted || !oauthState.connected ||
-     !netlifyState.connected || !oauthState.csrfToken ||
-     !byId("crm-deploy-credits").checked || !byId("crm-deploy-one").checked ||
-     byId("crm-deploy-phrase").value!=="DEPLOY ONE TEST CRM"){
+  const out = byId("crm-app-deploy-result");
+  out.classList.remove("is-error", "is-warning");
+  // Incomplete form submissions explain themselves locally. They MUST NOT
+  // send any request to Netlify, Supabase, or the staging deploy function.
+  const blocker = crmDeployFormBlocker();
+  if (blocker) {
+    out.classList.add("is-warning");
+    out.textContent = blocker + " No deployment request was sent.";
     return;
   }
   const publishableKey=byId("crm-deploy-public-key").value;
-  if(!/^sb_publishable_[A-Za-z0-9_-]{16,200}$/.test(publishableKey))return;
-  if(!window.confirm("FINAL CONFIRMATION: Upload ONE CRM application to the EXISTING kleanly-business-crm-pilot.netlify.app site in the kleanlytest Free Plan team? This may consume Netlify credits. No owner account or invitation will be created. Automatic retries are prohibited.")) return;
+  if(!window.confirm("FINAL CONFIRMATION: Upload ONE CRM application to the EXISTING kleanly-business-crm-pilot.netlify.app site in the kleanlytest Free Plan team? This may consume Netlify credits. No owner account or invitation will be created. Automatic retries are prohibited.")) {
+    out.textContent = "Deployment cancelled at final confirmation. No upload was submitted.";
+    return;
+  }
   crmDeploySubmitPending=true;
   crmDeploySubmittedInThisTab=true; // Never allow another POST in this tab.
   renderProviders();
-  const out=byId("crm-app-deploy-result");
   out.classList.remove("is-error","is-warning");
   out.textContent="Sending ONE controlled CRM deployment request. Do not refresh or resubmit.";
   try{
