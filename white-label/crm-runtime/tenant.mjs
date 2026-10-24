@@ -1,5 +1,5 @@
 // Klean.ly Business — isolated, owner-only CRM browser transport.
-// No tokens or session credentials persist to localStorage or cookies.
+// Access and refresh tokens are held only in memory for the active tab.
 // The dedicated project's RLS remains the source of authorization.
 const PILOT_REF = "nlupgjwcyivepzgqffss";
 const PILOT_CRM_ORIGIN = "https://kleanly-business-crm-pilot.netlify.app";
