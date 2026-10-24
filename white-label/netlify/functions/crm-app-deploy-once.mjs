@@ -162,7 +162,11 @@ export function createOneCrmAppDeployHandler({
     if(checked.error)return fail(checked.error,checked.code);
     const current=checked.current;
 
-    if(request.method==="GET"){
+    // Prefer a same-origin POST for read-only status checks: browsers may
+    // legitimately omit the Origin header on GET requests.
+    // The status-only query selector never triggers an upload.
+    if(request.method==="GET" ||
+       (request.method==="POST" && new URL(request.url).searchParams.get("status")==="1")){
       let prior;
       try{prior=await readAttempt(current);}
       catch{return fail("deployment_record_unavailable",503);}

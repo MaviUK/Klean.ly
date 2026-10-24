@@ -38,6 +38,30 @@ test("deployment locked by default",async()=>{
  const {handler}=make({isEnabled:()=>false});
  assert.equal((await handler(request())).status,423);
 });
+test("read-only status works as a same-origin POST without consent or key",async()=>{
+  let outgoing=0;
+  const {handler,actions}=make({
+    reserve:async()=>{outgoing++;throw Error("Status must not reserve a deploy");},
+    deployZip:async()=>{outgoing++;throw Error("Status must not upload a ZIP");},
+  });
+  const req=new Request(URL+"?status=1",{
+    method:"POST",
+    headers:{
+      Origin:"https://kleanly-business-installer-staging.netlify.app",
+      "Sec-Fetch-Site":"same-origin",
+      "Content-Type":"application/json",
+      "X-CSRF-Token":"csrf-private",
+    },
+    body:"{}",
+  });
+  const response=await handler(req);
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.state,"not_attempted");
+  assert.equal(body.canSubmit,true);
+  assert.equal(outgoing,0);
+  assert.deepEqual(actions,[]);
+});
 test("secure verified one-time deployment locks before upload",async()=>{
  const {handler,actions}=make();
  const response=await handler(request());

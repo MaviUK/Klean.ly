@@ -1459,9 +1459,11 @@ async function checkCrmAppDeploymentStatus() {
   out.classList.remove("is-error","is-warning");
   out.textContent="Checking the one-time Netlify deployment record…";
   try {
-    const response=await fetch("/.netlify/functions/crm-app-deploy-once",{
-      method:"GET",credentials:"same-origin",cache:"no-store",
-      headers:{"X-CSRF-Token":oauthState.csrfToken},
+    const response=await fetch("/.netlify/functions/crm-app-deploy-once?status=1",{
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json",
+        "X-CSRF-Token":oauthState.csrfToken},
+      body:"{}",
     });
     const data=await response.json();
     if (!response.ok || data?.mode!=="staging_exact_first_crm_deploy") {
