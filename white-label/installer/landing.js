@@ -50,23 +50,23 @@
     for (const item of items) {
       if (!item || typeof item.name !== "string" || !validPercent(item.percent)) continue;
       const row = document.createElement("div");
-      row.className = "build-component";
+      row.className = "l-build-component";
       const heading = document.createElement("div");
-      heading.className = "component-heading";
+      heading.className = "l-component-heading";
       const label = document.createElement("span");
       label.textContent = item.name;
       const value = document.createElement("strong");
       value.textContent = item.percent + "%";
       heading.append(label, value);
       const track = document.createElement("div");
-      track.className = "component-track";
+      track.className = "l-component-track";
       track.setAttribute("role", "progressbar");
       track.setAttribute("aria-label", item.name);
       track.setAttribute("aria-valuemin", "0");
       track.setAttribute("aria-valuemax", "100");
       track.setAttribute("aria-valuenow", String(item.percent));
       const fill = document.createElement("span");
-      fill.className = "component-fill";
+      fill.className = "l-component-fill";
       fill.style.width = item.percent + "%";
       track.append(fill);
       row.append(heading, track);
@@ -81,7 +81,7 @@
     for (const item of items.slice(0, 3)) {
       if (!item || typeof item.title !== "string" || typeof item.date !== "string") continue;
       const row = document.createElement("article");
-      row.className = "update-row";
+      row.className = "l-update-row";
       const date = document.createElement("time");
       date.dateTime = item.date;
       date.textContent = formattedDate(item.date);
@@ -92,7 +92,7 @@
       detail.textContent = typeof item.detail === "string" ? item.detail : "";
       content.append(title, detail);
       const tag = document.createElement("span");
-      tag.className = "update-state";
+      tag.className = "l-update-state";
       tag.textContent = typeof item.status === "string" ? item.status : "Update";
       row.append(date, content, tag);
       target.append(row);
