@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { Script } from "node:vm";
 
 const root = new URL("../installer/", import.meta.url);
 const html = readFileSync(new URL("index.html", root), "utf8");
@@ -43,6 +44,7 @@ test("development percentages are valid planning estimates, not asserted code co
 });
 
 test("live progress loader reads published JSON, rather than guessing from deploy count", () => {
+  assert.doesNotThrow(() => new Script(script), "landing.js must be syntactically valid");
   assert.match(script, /fetch\("\.\/progress\.json\?t="/);
   assert.match(script, /cache: "no-store"/);
   assert.match(script, /setInterval\(loadProgress, 120000\)/);
