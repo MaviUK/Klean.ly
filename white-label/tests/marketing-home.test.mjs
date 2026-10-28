@@ -54,3 +54,19 @@ test("live progress loader reads published JSON, rather than guessing from deplo
   const ids = Array.from(html.matchAll(/\bid="([^"]+)"/g), (m) => m[1]);
   assert.equal(new Set(ids).size, ids.length, "homepage must not duplicate existing wizard element IDs");
 });
+
+
+test("marketing page keeps sharp corners, restrained accent colours and responsive layouts", () => {
+  const radiusDeclarations = Array.from(styles.matchAll(/border-radius:\s*([^;]+);/g), m => m[1].trim());
+  assert.ok(radiusDeclarations.length > 0, "explicit square-corner reset exists");
+  assert.ok(radiusDeclarations.every(radius => radius === "0"), "homepage uses no rounded corners");
+  assert.match(styles, /--l-blue:\s*#315cf5;/);
+  assert.match(styles, /--l-yellow:\s*#ffe45d;/);
+  assert.match(styles, /\.landing \.l-ring::after/);
+  assert.match(styles, /@media \(max-width: 800px\)/);
+  assert.match(styles, /@media \(max-width: 580px\)/);
+  assert.doesNotMatch(styles, /(?:radial-gradient|conic-gradient)/i);
+  assert.match(styles, /#setup-wizard\[hidden\]/, "wizard visibility remains independently controlled");
+  assert.doesNotMatch(styles, /(^|\n)\s*\.(?:sidebar|workspace|provider-card|step-panel)\s*\{/,
+    "marketing styles must not affect the existing wizard");
+});
