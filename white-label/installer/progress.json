@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-28",
+  "status": "Active development",
+  "overall": 25,
+  "firstInstallation": 70,
+  "estimateNote": "Planning estimates based on reviewed milestones, not automated code-coverage measurements.",
+  "nextMilestone": "Complete the first secure business-owner invitation and verify database access rules.",
+  "components": [
+    {
+      "id": "installer",
+      "name": "Installer wizard & account connections",
+      "percent": 75
+    },
+    {
+      "id": "provisioning",
+      "name": "Automatic database & website setup",
+      "percent": 55
+    },
+    {
+      "id": "interface",
+      "name": "CRM interface & navigation",
+      "percent": 45
+    },
+    {
+      "id": "auth",
+      "name": "Business-owner authentication",
+      "percent": 65
+    },
+    {
+      "id": "customers",
+      "name": "Customers & cleaning rounds",
+      "percent": 15
+    },
+    {
+      "id": "jobs",
+      "name": "Jobs, scheduling & recurring cleans",
+      "percent": 10
+    },
+    {
+      "id": "billing",
+      "name": "Payments & billing",
+      "percent": 5
+    },
+    {
+      "id": "communications",
+      "name": "SMS, email & integrations",
+      "percent": 10
+    },
+    {
+      "id": "onboarding",
+      "name": "Fully automated white-label onboarding",
+      "percent": 20
+    }
+  ],
+  "updates": [
+    {
+      "date": "2026-10-28",
+      "title": "Secure owner access",
+      "detail": "Preparing the first business-owner invitation and database security verification.",
+      "status": "In progress"
+    },
+    {
+      "date": "2026-10-25",
+      "title": "First CRM pilot",
+      "detail": "CRM login screen, navigation and dedicated test deployment workflow established.",
+      "status": "Foundation"
+    },
+    {
+      "date": "2026-10-24",
+      "title": "Connected setup services",
+      "detail": "Test Supabase and Netlify connections verified; email-provider configuration added.",
+      "status": "Foundation"
+    }
+  ]
+}
