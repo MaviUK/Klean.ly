@@ -101,7 +101,7 @@ export async function verifyFirstPilotAppDeploy(current, projectRef, {
     ]);
     if (!attempt || attempt.status !== "ready" ||
         typeof attempt.deploy_id !== "string" ||
-        !/^[\\w:-]{8,128}$/.test(attempt.deploy_id) ||
+        !/^[A-Za-z0-9_:-]{8,128}$/.test(attempt.deploy_id) ||
         attempt.supabase_project_ref !== projectRef ||
         attempt.netlify_site_id !== RELEASE_PILOT_SITE_ID ||
         attempt.netlify_site_id !== site?.site_id ||
