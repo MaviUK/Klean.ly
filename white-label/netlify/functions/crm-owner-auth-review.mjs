@@ -7,14 +7,14 @@ import {
   isPilotTarget, isStagingHost, pilotSettings,
   REF_PATTERN, PILOT_PROJECT_NAME,
 } from "./_lib/test-project-pilot.mjs";
-import { CRM_SITE_OWNER_EMAIL } from "./_lib/crm-site-pilot.mjs";
+import { CRM_SITE_OWNER_EMAIL, CRM_SITE_TEAM_SLUG } from "./_lib/crm-site-pilot.mjs";
 import { PILOT_CRM_SITE_URL } from "./crm-site-proposal.mjs";
 import { createOwnerLoginReadinessHandler } from "./owner-login-readiness.mjs";
 import { createCrmDeploymentReadinessHandler } from "./crm-deployment-readiness.mjs";
 import { loadVerifiedNetlifyPilotGrant } from "./crm-site-proposal.mjs";
 import { readCrmSiteAttempt } from "./_lib/crm-site-pilot.mjs";
 import { getPilotDeployAttempt } from "../../provisioning/first-crm-deploy-ledger.mjs";
-import { RELEASE_PILOT_SITE_ID } from "../../provisioning/prepare-crm-release.mjs";
+import { RELEASE_PILOT_SITE_ID, RELEASE_PILOT_SUPABASE } from "../../provisioning/prepare-crm-release.mjs";
 import { checkExactCrmDeploy } from "./crm-app-deploy-once.mjs";
 
 // Staging-only, read-only inspection before any owner invitation is developed.
@@ -93,7 +93,7 @@ export async function verifyFirstPilotAppDeploy(current, projectRef, {
   getNetlifyGrant = loadVerifiedNetlifyPilotGrant,
   checkDeploy = checkExactCrmDeploy,
 } = {}) {
-  if (!REF_PATTERN.test(projectRef || "")) return false;
+  if (projectRef !== new URL(RELEASE_PILOT_SUPABASE).hostname.split(".")[0]) return false;
   let attempt, site, grant, live;
   try {
     [attempt, site] = await Promise.all([
@@ -107,7 +107,8 @@ export async function verifyFirstPilotAppDeploy(current, projectRef, {
         attempt.netlify_site_id !== site?.site_id ||
         attempt.netlify_team_id !== site?.netlify_team_id ||
         attempt.netlify_user_id !== site?.netlify_user_id ||
-        site?.netlify_team_slug !== "kleanlytest" ||
+        site?.status !== "created" ||
+        site?.netlify_team_slug !== CRM_SITE_TEAM_SLUG ||
         site?.supabase_project_ref !== projectRef ||
         !/^[a-f0-9]{64}$/.test(attempt.source_hash || "") ||
         !/^[a-f0-9]{64}$/.test(attempt.archive_hash || "")) {
