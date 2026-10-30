@@ -287,6 +287,7 @@ const confirmedFirstDeploy = {
   source_hash: "a".repeat(64), archive_hash: "b".repeat(64),
 };
 const confirmedSite = {
+  status: "created",
   site_id: actualPilotSiteId,
   netlify_team_id: "test-team",
   netlify_user_id: "test-netlify-user",
