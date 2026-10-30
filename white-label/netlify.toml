@@ -1,0 +1,18 @@
+# Dedicated white-label installer staging site.
+# Set Netlify project Base directory = white-label.
+# This file intentionally prevents the main directory's root netlify.toml
+# from deploying its production build, functions or scheduled tasks here.
+
+[build]
+  command = "npm test && node tools/build-crm-preview.mjs"
+  publish = "installer"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    Content-Security-Policy = "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; upgrade-insecure-requests"

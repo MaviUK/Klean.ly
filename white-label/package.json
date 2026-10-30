@@ -1,0 +1,19 @@
+{
+  "name": "kleanly-white-label",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "installer": "node provisioner/install.mjs",
+    "check": "node --check installer/app.mjs && node --check netlify/functions/_lib/connection-vault.mjs && node --check netlify/functions/_lib/connection-store.mjs && node --test tests/*.test.mjs",
+    "review:crm": "node tools/review-crm-release.mjs"
+  },
+  "description": "Separate Klean.ly Business provisioning portal (not the Klean.ly directory)",
+  "dependencies": {
+    "@netlify/database": "2.0.1"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
