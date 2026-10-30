@@ -11,6 +11,11 @@ import { CRM_SITE_OWNER_EMAIL } from "./_lib/crm-site-pilot.mjs";
 import { PILOT_CRM_SITE_URL } from "./crm-site-proposal.mjs";
 import { createOwnerLoginReadinessHandler } from "./owner-login-readiness.mjs";
 import { createCrmDeploymentReadinessHandler } from "./crm-deployment-readiness.mjs";
+import { loadVerifiedNetlifyPilotGrant } from "./crm-site-proposal.mjs";
+import { readCrmSiteAttempt } from "./_lib/crm-site-pilot.mjs";
+import { getPilotDeployAttempt } from "../../provisioning/first-crm-deploy-ledger.mjs";
+import { RELEASE_PILOT_SITE_ID } from "../../provisioning/prepare-crm-release.mjs";
+import { checkExactCrmDeploy } from "./crm-app-deploy-once.mjs";
 
 // Staging-only, read-only inspection before any owner invitation is developed.
 // Only the existing test project/site may be checked. This endpoint never
@@ -79,6 +84,47 @@ export async function inspectOwnerAuthConfig(ref, token, fetchFn = fetch) {
   return { permitted: true, ...summariseOwnerAuthConfig(await response.json()) };
 }
 
+// Only a ledger-locked, provider-confirmed FIRST deployment qualifies.
+ // A random existing Netlify deployment must never enable owner onboarding.
+ // This is read-only: SELECT from control-plane ledgers and GET from Netlify.
+export async function verifyFirstPilotAppDeploy(current, projectRef, {
+  readAttempt = getPilotDeployAttempt,
+  readSite = readCrmSiteAttempt,
+  getNetlifyGrant = loadVerifiedNetlifyPilotGrant,
+  checkDeploy = checkExactCrmDeploy,
+} = {}) {
+  if (!REF_PATTERN.test(projectRef || "")) return false;
+  let attempt, site, grant, live;
+  try {
+    [attempt, site] = await Promise.all([
+      readAttempt(current), readSite(current),
+    ]);
+    if (!attempt || attempt.status !== "ready" ||
+        typeof attempt.deploy_id !== "string" ||
+        !/^[\\w:-]{8,128}$/.test(attempt.deploy_id) ||
+        attempt.supabase_project_ref !== projectRef ||
+        attempt.netlify_site_id !== RELEASE_PILOT_SITE_ID ||
+        attempt.netlify_site_id !== site?.site_id ||
+        attempt.netlify_team_id !== site?.netlify_team_id ||
+        attempt.netlify_user_id !== site?.netlify_user_id ||
+        site?.netlify_team_slug !== "kleanlytest" ||
+        site?.supabase_project_ref !== projectRef ||
+        !/^[a-f0-9]{64}$/.test(attempt.source_hash || "") ||
+        !/^[a-f0-9]{64}$/.test(attempt.archive_hash || "")) {
+      return false;
+    }
+    grant = await getNetlifyGrant(current);
+    if (grant?.netlifyAccountEmail !== CRM_SITE_OWNER_EMAIL ||
+        grant?.netlifyUserId !== attempt.netlify_user_id) return false;
+    live = await checkDeploy(grant.accessToken, attempt.deploy_id);
+    return live?.ready === true &&
+      live?.deployId === attempt.deploy_id &&
+      ["ready", "current"].includes(live?.state);
+  } catch {
+    return false;
+  }
+}
+
 function failure(message, status = 409) {
   return safeStatusResponse({
     mode: "read_only_crm_owner_auth_setup",
@@ -100,6 +146,7 @@ export function createOwnerAuthSetupReviewHandler({
   reviewDeployment = createCrmDeploymentReadinessHandler(),
   getGrant = loadFreshPilotGrant,
   checkAuthConfig = inspectOwnerAuthConfig,
+  verifyAppDeploy = verifyFirstPilotAppDeploy,
 } = {}) {
   return async function handler(request) {
     if (request.method !== "POST") return failure("Method not allowed", 405);
@@ -158,7 +205,9 @@ export function createOwnerAuthSetupReviewHandler({
         deployment?.appDeployed !== false ||
         deployment?.websiteModified !== false ||
         deployment?.ownerCreated !== false ||
-        deployment?.emailSent !== false) {
+        deployment?.emailSent !== false ||
+        deployment?.confirmedFreePlan !== true ||
+        deployment?.gitRepositoryLinked !== false) {
       return failure("The dedicated CRM database or website does not match the pilot");
     }
     // No initial owner may be invited over the top of existing staff.
@@ -176,11 +225,19 @@ export function createOwnerAuthSetupReviewHandler({
         note: "An owner or staff record already exists. Do not send a new first-owner invitation.",
       });
     }
-    if (deployment.state !== "empty_site_verified" ||
-        deployment.siteHasExistingDeployment !== false ||
-        deployment.gitRepositoryLinked !== false ||
-        deployment.confirmedFreePlan !== true ||
-        deployment.readyToPrepareCrmPackage !== true) {
+    // Before the first deploy, continue to offer configuration guidance.
+    // After the single approved deploy, require a matching immutable ledger
+    // AND a fresh read-only provider status check; never trust merely seeing
+    // an existing deployed site.
+    const emptySite = deployment.state === "empty_site_verified" &&
+      deployment.siteHasExistingDeployment === false &&
+      deployment.readyToPrepareCrmPackage === true;
+    const deployedSite = deployment.state === "existing_deployment_review_required" &&
+      deployment.siteHasExistingDeployment === true &&
+      deployment.readyToPrepareCrmPackage === false;
+    let appVerified = false;
+    if (deployedSite) appVerified = await verifyAppDeploy(current, owner.projectRef);
+    if (!emptySite && !(deployedSite && appVerified === true)) {
       return safeStatusResponse({
         mode: "read_only_crm_owner_auth_setup",
         state: "website_needs_review",
@@ -189,7 +246,7 @@ export function createOwnerAuthSetupReviewHandler({
         requiredCallbackUrl: OWNER_AUTH_REDIRECT,
         invitationEnabled: false, ownerCreated: false, emailSent: false,
         databaseModified: false, websiteModified: false, writeAttempted: false,
-        note: "The Netlify website has changed; review its deployment before configuring owner login.",
+        note: "The CRM site must have exactly one verified, approved deployment. A pre-existing or unverified deployment does not qualify. Check its status read-only; never deploy again automatically.",
       });
     }
 
@@ -207,7 +264,7 @@ export function createOwnerAuthSetupReviewHandler({
         projectVerified: true, websiteVerified: true,
         ownerEmail: CRM_SITE_OWNER_EMAIL, proposedLoginUrl: PILOT_CRM_SITE_URL,
         requiredCallbackUrl: OWNER_AUTH_REDIRECT,
-        authSettingsRead: false,
+        authSettingsRead: false, crmAppDeployed: appVerified,
         invitationEnabled: false, ownerCreated: false, emailSent: false,
         databaseModified: false, websiteModified: false, writeAttempted: false,
         note: "The test OAuth grant needs Supabase auth:read access before its Auth settings can be reviewed. No changes were made.",
@@ -228,7 +285,8 @@ export function createOwnerAuthSetupReviewHandler({
     return safeStatusResponse({
       mode: "read_only_crm_owner_auth_setup",
       state: auth.authSettingsReadyForLaterReview
-        ? "auth_settings_checked_waiting_for_crm_deploy"
+        ? (appVerified ? "auth_settings_checked_waiting_for_invite_review"
+          : "auth_settings_checked_waiting_for_crm_deploy")
         : "auth_url_configuration_needed",
       ownerEmail: CRM_SITE_OWNER_EMAIL,
       proposedLoginUrl: PILOT_CRM_SITE_URL,
@@ -241,13 +299,15 @@ export function createOwnerAuthSetupReviewHandler({
       callbackAllowlisted: auth.callbackAllowlisted,
       emailProviderEnabled: auth.emailProviderEnabled,
       publicSignupsDisabled: auth.publicSignupsDisabled,
-      crmAppDeployed: false,
+      crmAppDeployed: appVerified,
       invitationEnabled: false,
       ownerCreated: false, emailSent: false,
       databaseModified: false, websiteModified: false, writeAttempted: false,
       note: auth.authSettingsReadyForLaterReview
-        ? "Read-only: Auth URL settings are aligned, but the CRM app and callback are not deployed yet. Do not send an invitation until they are installed and security-tested."
-        : "Read-only: review the dedicated Supabase Auth Site URL, exact callback allowlist, email provider and signup restrictions before any first-owner invitation. The CRM app is also not deployed.",
+        ? (appVerified
+          ? "The first CRM deployment and Auth URL settings have passed read-only checks. Next verify the live callback, email template and sender, then separately authorise ONE owner invitation. No invitation was sent."
+          : "Auth URL settings are aligned but the first CRM app is not deployed. Do not send an invitation until the exact site and callback are installed and verified.")
+        : "Review the test Supabase Auth Site URL, exact callback allowlist, email provider and public signup restrictions before any first-owner invitation.",
     });
   };
 }
