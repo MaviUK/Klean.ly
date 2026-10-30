@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   OWNER_AUTH_REDIRECT, AUTH_MANAGEMENT_API,
   summariseOwnerAuthConfig, inspectOwnerAuthConfig,
-  createOwnerAuthSetupReviewHandler,
+  verifyFirstPilotAppDeploy, createOwnerAuthSetupReviewHandler,
 } from "../netlify/functions/crm-owner-auth-review.mjs";
 import { PILOT_PROJECT_NAME, pilotSettings } from
   "../netlify/functions/_lib/test-project-pilot.mjs";
@@ -273,4 +273,129 @@ test("mobile installer contains only a read-only owner-login review action", () 
   assert.match(app, /\.netlify\/functions\/crm-owner-auth-review/);
   assert.doesNotMatch(html, /id="invite-one-crm-owner"/);
   assert.doesNotMatch(app, /\.netlify\/functions\/crm-owner-invite/);
+});
+
+
+const actualTestProjectRef = "nlupgjwcyivepzggffss";
+const actualPilotSiteId = "c4632a28-a4b0-4e77-a54e-7a8bf05a8882";
+const confirmedFirstDeploy = {
+  status: "ready", deploy_id: "confirmed-test-deploy-id",
+  supabase_project_ref: actualTestProjectRef,
+  netlify_site_id: actualPilotSiteId,
+  netlify_team_id: "test-team",
+  netlify_user_id: "test-netlify-user",
+  source_hash: "a".repeat(64), archive_hash: "b".repeat(64),
+};
+const confirmedSite = {
+  site_id: actualPilotSiteId,
+  netlify_team_id: "test-team",
+  netlify_user_id: "test-netlify-user",
+  netlify_team_slug: "kleanlytest",
+  supabase_project_ref: actualTestProjectRef,
+};
+function liveDeployChecks(overrides={}) {
+  const actions=[];
+  return {
+    actions,
+    services:{
+      readAttempt: async () => {actions.push("read_attempt");return confirmedFirstDeploy;},
+      readSite: async () => {actions.push("read_site");return confirmedSite;},
+      getNetlifyGrant: async () => {actions.push("read_grant");return {
+        netlifyAccountEmail: CRM_SITE_OWNER_EMAIL,
+        netlifyUserId: "test-netlify-user", accessToken: "never-expose-private-token",
+      };},
+      checkDeploy: async (token,id) => {
+        actions.push("provider_get");
+        assert.equal(token,"never-expose-private-token");
+        assert.equal(id,confirmedFirstDeploy.deploy_id);
+        return {ready:true,state:"ready",deployId:id};
+      },
+      ...overrides,
+    },
+  };
+}
+
+test("first CRM app is verified through exact one-time ledger and Netlify GET, never a site URL alone", async () => {
+  const {actions,services}=liveDeployChecks();
+  assert.equal(await verifyFirstPilotAppDeploy(current,actualTestProjectRef,services),true);
+  assert.deepEqual(actions,["read_attempt","read_site","read_grant","provider_get"]);
+});
+
+test("unverified, foreign and uncertain deployments cannot pass the owner preflight", async () => {
+  const cases=[
+    {readAttempt:async()=>null},
+    {readAttempt:async()=>({...confirmedFirstDeploy,status:"submitted"})},
+    {readAttempt:async()=>({...confirmedFirstDeploy,status:"unknown"})},
+    {readAttempt:async()=>({...confirmedFirstDeploy,netlify_site_id:"foreign"})},
+    {readAttempt:async()=>({...confirmedFirstDeploy,supabase_project_ref:"otherproject1234567890"})},
+    {readAttempt:async()=>({...confirmedFirstDeploy,source_hash:"bad"})},
+    {readSite:async()=>({...confirmedSite,netlify_team_slug:"production"})},
+    {readSite:async()=>({...confirmedSite,netlify_user_id:"other-user"})},
+    {getNetlifyGrant:async()=>({netlifyAccountEmail:"other@example.com",netlifyUserId:"test-netlify-user",accessToken:"fake"})},
+    {checkDeploy:async()=>({ready:false,state:"building",deployId:confirmedFirstDeploy.deploy_id})},
+    {checkDeploy:async()=>({ready:true,state:"ready",deployId:"other-deploy"})},
+  ];
+  for(const extra of cases){
+    const {services}=liveDeployChecks(extra);
+    assert.equal(await verifyFirstPilotAppDeploy(current,actualTestProjectRef,services),false);
+  }
+  const {services}=liveDeployChecks();
+  assert.equal(await verifyFirstPilotAppDeploy(current,"wrong/project",services),false);
+});
+
+const alreadyDeployedSite = {
+  ...deployment, state: "existing_deployment_review_required",
+  siteHasExistingDeployment:true, readyToPrepareCrmPackage:false,
+};
+const authReady = {
+  site_url:PILOT_CRM_SITE_URL, uri_allow_list:OWNER_AUTH_REDIRECT,
+  disable_signup:true, external_email_enabled:true,
+};
+
+test("after verified ONE deploy, owner Auth review advances to email/callback preflight without sending", async () => {
+  let checks=0;
+  const response=await handler({
+    reviewDeployment:async()=>Response.json(alreadyDeployedSite),
+    verifyAppDeploy:async()=>{checks++;return true;},
+    checkAuthConfig:async()=>({permitted:true,...summariseOwnerAuthConfig(authReady)}),
+  })(request());
+  const body=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(checks,1);
+  assert.equal(body.state,"auth_settings_checked_waiting_for_invite_review");
+  assert.equal(body.crmAppDeployed,true);
+  assert.equal(body.authSettingsRead,true);
+  assert.equal(body.invitationEnabled,false);
+  assert.equal(body.emailSent,false);
+  assert.equal(body.ownerCreated,false);
+  assert.equal(body.writeAttempted,false);
+  assert.match(body.note,/callback/i);
+});
+
+test("a verified deployment with incorrect Auth URLs still requires configuration", async () => {
+  const response=await handler({
+    reviewDeployment:async()=>Response.json(alreadyDeployedSite),
+    verifyAppDeploy:async()=>true,
+  })(request());
+  const body=await response.json();
+  assert.equal(body.state,"auth_url_configuration_needed");
+  assert.equal(body.crmAppDeployed,true);
+  assert.equal(body.siteUrlCorrect,false);
+  assert.equal(body.callbackAllowlisted,false);
+  assert.equal(body.invitationEnabled,false);
+});
+
+test("a deployed site without the exact verified first deploy is blocked before Auth access", async () => {
+  let reads=0;
+  const response=await handler({
+    reviewDeployment:async()=>Response.json(alreadyDeployedSite),
+    verifyAppDeploy:async()=>false,
+    getGrant:async()=>{reads++;throw Error("must not read Auth provider");},
+    checkAuthConfig:async()=>{reads++;throw Error("must not read Auth provider");},
+  })(request());
+  const body=await response.json();
+  assert.equal(body.state,"website_needs_review");
+  assert.equal(reads,0);
+  assert.equal(body.invitationEnabled,false);
+  assert.equal(body.emailSent,false);
 });
