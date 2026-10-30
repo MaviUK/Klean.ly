@@ -1724,13 +1724,19 @@ async function reviewOwnerAuthSetup() {
         "A separate auth:read permission review is needed before proceeding. " +
         "No settings were changed and no email was sent.";
     } else if ((data.state === "auth_url_configuration_needed" ||
-        data.state === "auth_settings_checked_waiting_for_crm_deploy") &&
+        data.state === "auth_settings_checked_waiting_for_crm_deploy" ||
+        data.state === "auth_settings_checked_waiting_for_invite_review") &&
         data.authSettingsRead === true &&
         typeof data.siteUrlCorrect === "boolean" &&
         typeof data.callbackAllowlisted === "boolean" &&
         typeof data.emailProviderEnabled === "boolean" &&
         typeof data.publicSignupsDisabled === "boolean" &&
-        data.crmAppDeployed === false) {
+        typeof data.crmAppDeployed === "boolean" &&
+        (data.state !== "auth_settings_checked_waiting_for_invite_review" ||
+          (data.crmAppDeployed === true && data.siteUrlCorrect === true &&
+           data.callbackAllowlisted === true &&
+           data.emailProviderEnabled === true &&
+           data.publicSignupsDisabled === true))) {
       const summary = "Auth Site URL: " +
         (data.siteUrlCorrect ? "matches" : "needs configuration") +
         ". Exact callback allowlist: " +
@@ -1741,8 +1747,9 @@ async function reviewOwnerAuthSetup() {
         (data.publicSignupsDisabled ? "disabled" : "not disabled") + ". ";
       if (data.state === "auth_url_configuration_needed") output.classList.add("is-warning");
       output.textContent = heading + summary +
-        "The CRM app and login callback are NOT deployed. No invitation can be sent yet. " +
-        "We'll separately approve any future configuration and invitation.";
+        (data.crmAppDeployed
+          ? "The FIRST test CRM deployment is verified. Next, review the live callback, invitation email template and sender before separately approving ONE owner invitation. No email has been sent."
+          : "The test CRM app has NOT been verified as deployed. Check the one-time deployment status before any owner invitation; never deploy a second time.");
     } else if (data.state === "existing_owner_review_required" ||
                data.state === "website_needs_review") {
       output.classList.add("is-warning");
